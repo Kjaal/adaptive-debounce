@@ -1,0 +1,72 @@
+{
+  "name": "adaptive-debounce",
+  "version": "0.0.0",
+  "description": "Framework-agnostic adaptive debounce utilities for JavaScript and TypeScript.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./browser": {
+      "import": {
+        "types": "./dist/browser.d.mts",
+        "default": "./dist/browser.mjs"
+      },
+      "require": {
+        "types": "./dist/browser.d.cts",
+        "default": "./dist/browser.cjs"
+      }
+    },
+    "./persistence": {
+      "import": {
+        "types": "./dist/persistence.d.mts",
+        "default": "./dist/persistence.mjs"
+      },
+      "require": {
+        "types": "./dist/persistence.d.cts",
+        "default": "./dist/persistence.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:browser && pnpm publint && pnpm consumer && pnpm size && pnpm performance",
+    "consumer": "node scripts/check-consumers.mjs",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "performance": "node scripts/check-performance.mjs",
+    "publint": "publint",
+    "size": "node scripts/check-size.mjs",
+    "test": "vitest run",
+    "test:browser": "pnpm build && nuxt build fixtures/nuxt && playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@11.19.0",
+  "devDependencies": {
+    "@biomejs/biome": "2.5.10",
+    "@playwright/test": "1.62.1",
+    "esbuild": "0.28.2",
+    "nuxt": "4.4.2",
+    "publint": "0.3.24",
+    "tsdown": "0.22.14",
+    "typescript": "7.0.2",
+    "vue": "3.5.41",
+    "vitest": "4.1.11"
+  }
+}

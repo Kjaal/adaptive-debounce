@@ -1,0 +1,162 @@
+# adaptive-debounce
+
+A small, framework-neutral debounce utility that adapts to local interaction cadence. The core is
+DOM-free and safe to import during SSR. Browser observation and persistence are separate, optional
+entry points.
+
+## Install
+
+```sh
+npm install adaptive-debounce
+```
+
+## Quick start
+
+### JavaScript
+
+```js
+import { adaptiveDebounce } from 'adaptive-debounce'
+
+async function saveDraft(draft) {
+  return api.save(draft)
+}
+
+const saveLater = adaptiveDebounce(saveDraft)
+
+try {
+  await saveLater({ title: 'Latest title' })
+} catch (error) {
+  // Handle save failures and cancellation here.
+}
+```
+
+Pass the callback itself: `adaptiveDebounce(saveDraft)`, not
+`adaptiveDebounce(saveDraft())`. The default starts at `300 ms`, learns from calls, and runs on the
+trailing edge.
+
+### TypeScript
+
+```ts
+import { adaptiveDebounce, createAdaptiveDelay } from 'adaptive-debounce'
+
+const delay = createAdaptiveDelay()
+const saveLater = adaptiveDebounce(
+  async (documentId: string, revision: number): Promise<string> => {
+    return saveRevision(documentId, revision)
+  },
+  delay,
+)
+
+const savedRevision = await saveLater('guide', 4)
+console.log(delay.getDelay(), savedRevision)
+```
+
+Arguments, `this`, and the awaited result type are preserved. Calls always return promises.
+
+Use a fixed delay when adaptation is not needed:
+
+```js
+const saveLater = adaptiveDebounce(saveDraft, 300)
+```
+
+## Browser observation
+
+Use the optional browser entry point when the delay should learn from typing rather than wrapper
+calls:
+
+```js
+import { adaptiveDebounce, createAdaptiveDelay } from 'adaptive-debounce'
+import { observeTyping } from 'adaptive-debounce/browser'
+
+const delay = createAdaptiveDelay()
+const saveLater = adaptiveDebounce(saveDraft, {
+  delay,
+  recordCalls: false,
+})
+const stopObserving = observeTyping(delay)
+
+console.log(delay.getDelay())
+
+// On unmount or route teardown:
+stopObserving()
+saveLater.cancel()
+```
+
+`observeTyping()` uses delegated listeners, so it also covers fields added later. Pass a `Document`
+or `Element` as `root` to limit the observed area. Cleanup is idempotent.
+
+The observer records trusted typed insertions in eligible text controls. It ignores paste,
+deletion, autofill, undo, key repeat, synthetic events, and intermediate IME events. Password,
+payment, and one-time-code controls are excluded. Add `data-adaptive-debounce-ignore` to any
+control or ancestor that should not be observed.
+
+## Controls and async behavior
+
+```js
+saveLater.pending() // true while a debounce window is open
+saveLater.flush() // run the pending trailing call now
+saveLater.cancel() // reject the pending window with an AbortError
+saveLater.cancel(reason) // reject it with a custom reason
+```
+
+Calls in one window share one promise and use the latest arguments. A new call reschedules that
+window; it is not an explicit cancellation. Synchronous throws and asynchronous rejections reject
+the shared promise.
+
+`cancel()` cannot stop work that has already started. A configured `maxWait` can start a newer
+async invocation while an older one is still running, and each window settles independently.
+
+## SSR and Nuxt
+
+Every entry point is safe to import during SSR and prerendering. Start browser observation and load
+persisted state only during client execution.
+
+```vue
+<script setup lang="ts">
+import { adaptiveDebounce, createAdaptiveDelay } from 'adaptive-debounce'
+import { observeTyping } from 'adaptive-debounce/browser'
+import { onMounted, onUnmounted } from 'vue'
+
+const delay = createAdaptiveDelay()
+const search = adaptiveDebounce(
+  (query: string) => $fetch('/api/search', { query: { q: query } }),
+  { delay, recordCalls: false },
+)
+
+let stopObserving = () => {}
+
+onMounted(() => {
+  stopObserving = observeTyping(delay)
+})
+
+onUnmounted(() => {
+  stopObserving()
+  search.cancel()
+})
+</script>
+```
+
+No `ClientOnly` wrapper or disabled SSR is needed. The cold-start state is deterministic on the
+server and client.
+
+## Privacy and persistence
+
+Adaptive timing and browser observation use timing metadata only. They never read input values or
+`InputEvent.data`, and the exported state contains only a version and one smoothed interval. The
+package has no telemetry, network behavior, runtime dependencies, or built-in storage.
+
+Like any debounce utility, the wrapper keeps the latest callback arguments until its pending
+window settles or is cancelled. Keep secrets out of callback arguments when that matters.
+
+Persistence is opt-in through `adaptive-debounce/persistence`. Your adapter owns consent, keys,
+serialization, access control, and storage. Call `dispose()` during teardown when autosave is used.
+
+## Defaults and options
+
+The adaptive delay defaults to a `100-1,000 ms` range, a `300 ms` cold start, and a `2,000 ms` idle
+reset. Configure `createAdaptiveDelay()` to change those values. Configure `adaptiveDebounce()`
+with `leading`, `trailing`, `maxWait`, and `recordCalls` when the defaults do not fit.
+
+## License
+
+[MIT](./LICENSE)
