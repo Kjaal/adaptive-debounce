@@ -1,6 +1,6 @@
 # Adaptive Debounce Package — TODO
 
-Status: v1 implementation and automated verification are complete. MIT licensing and public-package documentation are in place. Two real-device checks, the debugging playground, and remaining release decisions remain. Working project and package name: `adaptive-debounce`.
+Status: v1 implementation, automated verification, MIT public-package setup, and the sibling debugging playground are complete. `VERIFY-001` remains open for two real-device checks, and release-policy decisions remain. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
@@ -37,11 +37,13 @@ Complete one item per turn in dependency order. Decision items require user appr
   - Automated checks pass; completion still requires these real-device validations:
     - `HV-ADAPTIVE-DEBOUNCE-BROWSER-AUTOFILL`
     - `HV-ADAPTIVE-DEBOUNCE-BROWSER-IME-COMPLETION`
+  - Run both checks from the sibling `adaptive-debounce-playground` using its **Real OS checks** panel; the same instructions are in that project's README.
 
 ### 4. Public package and debugging playground
 
 - [x] `PUBLIC-001` Adopt the MIT license, make the manifest publicly publishable, simplify the public README, and schedule the separate debugging playground without publishing a release.
-- [ ] `DEMO-001` Create a sibling localhost debugging playground after `DEBOUNCE-002` and `BROWSER-003` and before final release-policy work.
+- [x] `DEMO-001` Create a sibling localhost debugging playground after `DEBOUNCE-002` and `BROWSER-003` and before final release-policy work.
+  - Completed in `../adaptive-debounce-playground` on `main` at `cc1b3efe`; its type check, production build, and Chromium smoke test pass.
   - Keep the package itself framework-neutral and free of runtime dependencies. The playground must consume the existing public API through a local packed artifact or workspace link; do not add debug-only package APIs.
   - Use Vue with Composition API, `<script setup lang="ts">`, and shadcn-vue for the playground UI.
   - Add a simple form whose inputs schedule fake saves. Show the current recommended delay live.
@@ -150,7 +152,7 @@ DEBOUNCE-002 + BROWSER-003 → DEMO-001 → final release policy
 - [x] Add type tests for callback arguments, `this`, awaited results, controls, invalid options, and ESM/CommonJS declaration resolution.
 - [x] Add import-safety tests for every public entry point in environments without a DOM.
 - [x] Run automated browser tests for dynamic inputs, privacy exclusions, repeated keys, synthetic events, teardown, and server-call errors.
-- [ ] Validate trusted autofill and completed IME behavior on real devices (`HV-ADAPTIVE-DEBOUNCE-BROWSER-AUTOFILL`, `HV-ADAPTIVE-DEBOUNCE-BROWSER-IME-COMPLETION`).
+- [ ] Validate trusted autofill and completed IME behavior on real devices using the sibling playground's **Real OS checks** panel (`HV-ADAPTIVE-DEBOUNCE-BROWSER-AUTOFILL`, `HV-ADAPTIVE-DEBOUNCE-BROWSER-IME-COMPLETION`).
 - [x] Add a Nuxt server-render-and-hydrate fixture that fails on hydration warnings or server-global access.
 - [x] Pack and consume the package from temporary ESM, CommonJS, JavaScript, and TypeScript projects, then run publint against the built exports.
 - [x] Enforce the default `adaptiveDebounce` browser quick-start import below `16,000` minified-and-gzipped bytes; report raw and Brotli sizes and measure optional subpaths separately.

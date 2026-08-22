@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `DEMO-001` Created and verified the separate Vue and shadcn-vue localhost debugger with live delay state, a bounded privacy-safe event timeline, lifecycle controls, manual real-OS checks, and browser coverage.
 - `PUBLIC-001` Adopted the MIT license, enabled public npm packaging, simplified the README, and scheduled a separate Vue debugging playground.
 - `BROWSER-003` Implemented the explicit SSR-safe browser observer with delegated listeners and idempotent teardown.
 - `BROWSER-002` Defined browser input, privacy-exclusion, repeat, composition, dynamic-field, and cleanup behavior in tests.
