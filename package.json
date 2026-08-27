@@ -3,6 +3,17 @@
   "version": "0.0.0",
   "description": "Framework-agnostic adaptive debounce utilities for JavaScript and TypeScript.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kjaal/adaptive-debounce.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Kjaal/adaptive-debounce/issues"
+  },
+  "homepage": "https://github.com/Kjaal/adaptive-debounce#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [

@@ -1,6 +1,6 @@
 # Adaptive Debounce Package — TODO
 
-Status: 22 of 24 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, and release hardening are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
+Status: 23 of 25 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, release hardening, and guarded manual GitHub/npm automation are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. npm name and scope control remains pending under `HV-ADAPTIVE-DEBOUNCE-NPM-SCOPE-OWNERSHIP`; no Action or publication has run. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
@@ -46,6 +46,8 @@ Complete one item per turn in dependency order. Decision items require user appr
 
 - [x] `PUBLIC-001` Adopt the MIT license, make the manifest publicly publishable, simplify the public README, and schedule the separate debugging playground without publishing a release.
 - [x] `RELEASE-001` Harden the public package without publishing: reject timer durations above the platform-safe maximum, validate persistence options strictly, bound stalled persistence lifecycle operations, build automatically before packing, keep standalone artifact checks fresh, add concise contribution and security policies, document state interoperability and sensitive-control boundaries, reconcile historical task traceability, and keep the sibling playground local-only and outside package release gating.
+- [x] `RELEASE-002` Add repository metadata and guarded GitHub release automation without running Actions or publishing. Acceptance: the initial push triggers no workflow; pull-request and manual CI use pinned official actions and read-only permissions; the manual npm workflow defaults to package-only, rejects the `0.0.0` sentinel, preserves and revalidates the exact consumer-tested tarballs, publishes only through the protected `npm-publish` environment in core → Vue → React → Nuxt order, supports one-time bootstrap-token migration to trusted publishing, and creates no tag or GitHub Release.
+  - `HV-ADAPTIVE-DEBOUNCE-NPM-SCOPE-OWNERSHIP` — `PENDING_HUMAN`: confirm control and public-package creation rights for `adaptive-debounce` and the `@adaptive-debounce` npm scope before any publish-mode run.
 - [x] `DEMO-001` Create a sibling localhost debugging playground after `DEBOUNCE-002` and `BROWSER-003` and before final release-policy work.
   - Completed in `../adaptive-debounce-playground` on `main` at `cc1b3efe`; its type check, production build, and Chromium smoke test pass.
   - Treat the playground as local-only package-testing tooling. Its repository state and release are independent and do not gate packing or publishing this npm package.
@@ -263,7 +265,7 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 ### Deferred beyond version one
 
 - No WPM API, root-package framework adapters, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation. The approved Vue, Nuxt, and React companion packages are tracked by `FRAMEWORK-001`.
-- npm scope and reservation, repository visibility, browser-support policy, publishing, remote setup, and release remain outside this task.
+- npm scope ownership, browser-support policy, actual publication, and any tag or GitHub Release remain explicit human release decisions; checked-in automation does not perform them automatically.
 
 ## Suggested Milestones
 

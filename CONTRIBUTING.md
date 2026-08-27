@@ -33,6 +33,11 @@ pnpm exec playwright install chromium
 For a focused non-browser change, run the relevant test plus formatting, linting, type-checking,
 and build checks. Run the complete check before requesting review.
 
+Pull requests targeting `main` run the same core and framework checks in GitHub Actions. There is
+no push-triggered workflow, so the repository's first push and later direct pushes start nothing.
+Maintainers can start CI manually from the Actions page. The separate npm workflow also requires a
+manual start and defaults to package-only; see [RELEASING.md](./RELEASING.md).
+
 ## Companion packages
 
 The workspace contains these independently packed packages:

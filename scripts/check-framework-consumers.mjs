@@ -1,15 +1,61 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, relative } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const pnpmCli = process.env.npm_execpath
 const typescriptCli = join(dirname(require.resolve('typescript/package.json')), 'bin', 'tsc')
+const workspaceVersion = JSON.parse(
+  await readFile(join(projectRoot, 'package.json'), 'utf8'),
+).version
+const releaseDirectoryInput = process.env.ADAPTIVE_DEBOUNCE_RELEASE_DIR
+const releaseVersion = process.env.ADAPTIVE_DEBOUNCE_RELEASE_VERSION
+const internalPackageNames = new Set([
+  'adaptive-debounce',
+  '@adaptive-debounce/vue',
+  '@adaptive-debounce/react',
+  '@adaptive-debounce/nuxt',
+])
+const expectedInternalDependencies = {
+  'adaptive-debounce': {},
+  '@adaptive-debounce/vue': { 'adaptive-debounce': `^${workspaceVersion}` },
+  '@adaptive-debounce/react': { 'adaptive-debounce': `^${workspaceVersion}` },
+  '@adaptive-debounce/nuxt': {
+    'adaptive-debounce': `^${workspaceVersion}`,
+    '@adaptive-debounce/vue': `^${workspaceVersion}`,
+  },
+}
+
+if (Boolean(releaseDirectoryInput) !== Boolean(releaseVersion)) {
+  throw new Error(
+    'Set ADAPTIVE_DEBOUNCE_RELEASE_DIR and ADAPTIVE_DEBOUNCE_RELEASE_VERSION together.',
+  )
+}
+
+const releaseOutput = releaseDirectoryInput
+  ? {
+      directory: resolve(projectRoot, releaseDirectoryInput),
+      version: releaseVersion,
+    }
+  : undefined
+
+if (releaseOutput) {
+  assert.equal(
+    dirname(releaseOutput.directory),
+    projectRoot,
+    'The retained release directory must be a direct child of the project root.',
+  )
+  assert.equal(
+    releaseOutput.version,
+    workspaceVersion,
+    'The retained release version must match every packed workspace package.',
+  )
+}
 
 if (!pnpmCli) {
   throw new Error('Run this check through `pnpm framework:consumer`.')
@@ -60,6 +106,7 @@ async function packPackage(temporaryRoot, packageName, packageRoot, requiredFile
   )
   const result = JSON.parse(output)
   assert.equal(result.name, packageName)
+  assert.equal(result.version, workspaceVersion)
   assert.equal(typeof result.filename, 'string')
 
   const files = new Set(result.files.map(({ path }) => path))
@@ -153,17 +200,87 @@ async function verifyInstalledManifests(consumerRoot, dependencyNames) {
       'package.json',
     )
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
-    const ranges = [
-      ...Object.values(manifest.dependencies ?? {}),
-      ...Object.values(manifest.optionalDependencies ?? {}),
-      ...Object.values(manifest.peerDependencies ?? {}),
+    assert.equal(manifest.version, workspaceVersion)
+    const expectedDependencies = expectedInternalDependencies[dependencyName]
+    assert.ok(expectedDependencies, `Missing internal dependency policy for ${dependencyName}.`)
+    for (const [name, range] of Object.entries(expectedDependencies)) {
+      assert.equal(
+        manifest.dependencies?.[name],
+        range,
+        `${dependencyName} did not rewrite ${name} to ${range}.`,
+      )
+    }
+
+    const dependencySections = [
+      ['dependencies', manifest.dependencies],
+      ['optionalDependencies', manifest.optionalDependencies],
+      ['peerDependencies', manifest.peerDependencies],
+      ['devDependencies', manifest.devDependencies],
     ]
+    const ranges = dependencySections.flatMap(([, dependencies]) =>
+      Object.values(dependencies ?? {}),
+    )
     assert.equal(
       ranges.some((range) => typeof range === 'string' && range.startsWith('workspace:')),
       false,
       `${dependencyName} retained a workspace dependency in its packed manifest.`,
     )
+    for (const [sectionName, dependencies] of dependencySections) {
+      for (const name of Object.keys(dependencies ?? {})) {
+        if (
+          internalPackageNames.has(name) &&
+          (sectionName !== 'dependencies' || !Object.hasOwn(expectedDependencies, name))
+        ) {
+          assert.fail(
+            `${dependencyName} has unexpected internal dependency ${sectionName}.${name}.`,
+          )
+        }
+      }
+    }
   }
+}
+
+async function retainReleaseTarballs(tarballs) {
+  if (!releaseOutput) {
+    return
+  }
+
+  let directoryExists = true
+  try {
+    await access(releaseOutput.directory)
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      directoryExists = false
+    } else {
+      throw error
+    }
+  }
+  if (directoryExists) {
+    throw new Error(
+      `${releaseOutput.directory} already exists. Remove that release-only directory before retrying.`,
+    )
+  }
+
+  await mkdir(releaseOutput.directory)
+  const destinations = {
+    core: `adaptive-debounce-${releaseOutput.version}.tgz`,
+    vue: `adaptive-debounce-vue-${releaseOutput.version}.tgz`,
+    react: `adaptive-debounce-react-${releaseOutput.version}.tgz`,
+    nuxt: `adaptive-debounce-nuxt-${releaseOutput.version}.tgz`,
+  }
+
+  try {
+    await Promise.all(
+      Object.entries(destinations).map(([key, filename]) =>
+        copyFile(tarballs[key], join(releaseOutput.directory, filename)),
+      ),
+    )
+  } catch (error) {
+    await rm(releaseOutput.directory, { force: true, recursive: true })
+    throw error
+  }
+
+  console.log(`Retained the four verified tarballs in ${releaseOutput.directory}.`)
 }
 
 function strictTypeScriptConfig(include, jsx) {
@@ -478,6 +595,8 @@ try {
     reactDom: '19.2.5',
   })
   await checkNuxt(temporaryRoot, tarballs)
+
+  await retainReleaseTarballs(tarballs)
 
   console.log(
     'Packed Vue, React 18/19, and Nuxt ESM, CommonJS, strict type, and SSR consumers passed.',

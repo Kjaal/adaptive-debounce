@@ -8,10 +8,10 @@ not be treated as security-supported packages.
 
 ## Reporting a vulnerability
 
-Do not disclose a suspected vulnerability in a public issue, discussion, or pull request. Once the
-repository is hosted, use its private vulnerability-reporting feature or the private maintainer
-contact published there. Include the affected version or commit, reproduction steps, impact, and
-any known mitigation. Avoid including real credentials, personal data, or sensitive input content.
+Do not disclose a suspected vulnerability in a public issue, discussion, or pull request. Use the
+repository's [private vulnerability report](https://github.com/Kjaal/adaptive-debounce/security/advisories/new).
+Include the affected version or commit, reproduction steps, impact, and any known mitigation. Avoid
+including real credentials, personal data, or sensitive input content.
 
 No response or remediation deadline is promised before a maintained release and private reporting
 channel exist. Confirmed reports will be handled privately until a fix and safe disclosure plan are
