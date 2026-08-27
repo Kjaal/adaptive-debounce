@@ -1,0 +1,189 @@
+name: Remove prerelease latest tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Enter "remove latest 0.1.0-rc.1" to continue
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Remove unintended latest tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the npm runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      - name: Confirm the protected cleanup request
+        env:
+          CLEANUP_CONFIRMATION: ${{ inputs.confirmation }}
+          CLEANUP_REF: ${{ github.ref }}
+          CLEANUP_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$CLEANUP_REPOSITORY" = "Kjaal/adaptive-debounce"
+          test "$CLEANUP_REF" = "refs/heads/main"
+          test "$CLEANUP_CONFIRMATION" = "remove latest 0.1.0-rc.1"
+          test "$(node --version)" = "v24.20.0"
+          test "$(npm --version)" = "11.19.0"
+
+      - name: Remove only the matching latest tags
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_BOOTSTRAP }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "The npm-publish environment does not contain NPM_TOKEN_BOOTSTRAP."
+            exit 1
+          fi
+
+          registry="https://registry.npmjs.org"
+          version="0.1.0-rc.1"
+          packages=(
+            "adaptive-debounce"
+            "@adaptive-debounce/vue"
+            "@adaptive-debounce/react"
+            "@adaptive-debounce/nuxt"
+          )
+
+          validate_package() {
+            local package="$1"
+            local require_latest_absent="$2"
+            local versions
+            local tags
+
+            if ! versions="$(npm view "$package" versions --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
+              echo "Unable to read published versions for $package."
+              return 1
+            fi
+
+            if ! tags="$(npm view "$package" dist-tags --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
+              echo "Unable to read distribution tags for $package."
+              return 1
+            fi
+
+            PACKAGE_NAME="$package" EXPECTED_VERSION="$version" VERSIONS_JSON="$versions" TAGS_JSON="$tags" REQUIRE_LATEST_ABSENT="$require_latest_absent" node --input-type=module <<'NODE'
+          const packageName = process.env.PACKAGE_NAME ?? ''
+          const expectedVersion = process.env.EXPECTED_VERSION ?? ''
+          const requireLatestAbsent = process.env.REQUIRE_LATEST_ABSENT === 'true'
+
+          const fail = (message) => {
+            console.error(`${packageName}: ${message}`)
+            process.exit(1)
+          }
+
+          let versions
+          let tags
+          try {
+            versions = JSON.parse(process.env.VERSIONS_JSON ?? '')
+            tags = JSON.parse(process.env.TAGS_JSON ?? '')
+          } catch {
+            fail('the registry returned invalid package metadata')
+          }
+
+          if (!Array.isArray(versions) || versions.length !== 1 || versions[0] !== expectedVersion) {
+            fail(`published versions must contain only ${expectedVersion}`)
+          }
+
+          if (tags === null || typeof tags !== 'object' || Array.isArray(tags) || tags.next !== expectedVersion) {
+            fail(`next must remain ${expectedVersion}`)
+          }
+
+          if (requireLatestAbsent) {
+            if (Object.hasOwn(tags, 'latest')) {
+              fail('latest must be absent after cleanup')
+            }
+          } else if (Object.hasOwn(tags, 'latest') && tags.latest !== expectedVersion) {
+            fail(`latest must be ${expectedVersion} or absent; refusing to remove a different tag`)
+          }
+
+          console.log(`Validated ${packageName}`)
+          NODE
+          }
+
+          for package in "${packages[@]}"; do
+            validate_package "$package" false
+          done
+
+          for package in "${packages[@]}"; do
+            if ! tags="$(npm view "$package" dist-tags --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
+              echo "Unable to recheck distribution tags for $package."
+              exit 1
+            fi
+
+            if ! has_target_latest="$(PACKAGE_NAME="$package" EXPECTED_VERSION="$version" TAGS_JSON="$tags" node --input-type=module <<'NODE'
+          const packageName = process.env.PACKAGE_NAME ?? ''
+          const expectedVersion = process.env.EXPECTED_VERSION ?? ''
+          let tags
+          try {
+            tags = JSON.parse(process.env.TAGS_JSON ?? '')
+          } catch {
+            console.error(`${packageName}: the registry returned invalid tag metadata`)
+            process.exit(1)
+          }
+
+          if (Object.hasOwn(tags, 'latest') && tags.latest === expectedVersion) {
+            console.log('yes')
+          } else if (!Object.hasOwn(tags, 'latest')) {
+            console.log('no')
+          } else {
+            console.error(`${packageName}: latest points to a different version; refusing to remove it`)
+            process.exit(1)
+          }
+          NODE
+            )"; then
+              echo "Unable to decide whether latest is safe to remove for $package."
+              exit 1
+            fi
+
+            if [ "$has_target_latest" = "yes" ]; then
+              echo "Removing latest from $package."
+              npm dist-tag rm "$package" latest --registry="$registry" --loglevel=error
+            else
+              echo "latest is already absent for $package."
+            fi
+          done
+
+          verify_cleanup() {
+            for package in "${packages[@]}"; do
+              validate_package "$package" true || return 1
+            done
+          }
+
+          for attempt in $(seq 1 12); do
+            if verify_cleanup; then
+              echo "Verified latest is absent and next and published versions are unchanged for all four packages."
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 12 ]; then
+              echo "The registry did not expose the expected cleanup state after 12 verification attempts."
+              exit 1
+            fi
+
+            echo "Registry tag state is still propagating; retrying verification ($attempt/12)."
+            sleep 5
+          done
