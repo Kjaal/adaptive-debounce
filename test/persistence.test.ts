@@ -5,6 +5,24 @@ import {
   createAdaptiveDelayPersistence,
 } from '../src/persistence'
 
+const LOCAL_STORAGE_KEY = 'adaptive-debounce:state'
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+
+function createMemoryStorage(initial: Readonly<Record<string, string>> = {}): Storage {
+  const values = new Map(Object.entries(initial))
+
+  return {
+    get length() {
+      return values.size
+    },
+    clear: vi.fn(() => values.clear()),
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    key: vi.fn((index: number) => [...values.keys()][index] ?? null),
+    removeItem: vi.fn((key: string) => values.delete(key)),
+    setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+  }
+}
+
 function deferred<Value = void>(): {
   readonly promise: Promise<Value>
   readonly resolve: (value: Value | PromiseLike<Value>) => void
@@ -21,9 +39,139 @@ function deferred<Value = void>(): {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
+  if (originalLocalStorageDescriptor) {
+    Object.defineProperty(globalThis, 'localStorage', originalLocalStorageDescriptor)
+  } else {
+    Reflect.deleteProperty(globalThis, 'localStorage')
+  }
 })
 
 describe('createAdaptiveDelayPersistence', () => {
+  it('shares exact version-one JSON through the fixed same-origin localStorage key', async () => {
+    const storage = createMemoryStorage()
+    vi.stubGlobal('localStorage', storage)
+
+    const firstDelay = createAdaptiveDelay()
+    firstDelay.importState({ version: 1, smoothedIntervalMs: 120 })
+    const firstPersistence = createAdaptiveDelayPersistence(firstDelay)
+
+    await firstPersistence.save()
+    expect(storage.setItem).toHaveBeenCalledWith(
+      LOCAL_STORAGE_KEY,
+      '{"version":1,"smoothedIntervalMs":120}',
+    )
+
+    const secondDelay = createAdaptiveDelay()
+    const secondPersistence = createAdaptiveDelayPersistence(secondDelay, {})
+    await expect(secondPersistence.load()).resolves.toBe('imported')
+    expect(secondDelay.exportState().smoothedIntervalMs).toBe(120)
+
+    secondDelay.importState({ version: 1, smoothedIntervalMs: 240 })
+    await secondPersistence.save()
+    firstDelay.reset()
+    await expect(firstPersistence.load()).resolves.toBe('imported')
+    expect(firstDelay.exportState().smoothedIntervalMs).toBe(240)
+
+    await secondPersistence.clear()
+    expect(storage.removeItem).toHaveBeenCalledWith(LOCAL_STORAGE_KEY)
+    expect(storage.getItem(LOCAL_STORAGE_KEY)).toBeNull()
+    expect(secondDelay.exportState().smoothedIntervalMs).toBeNull()
+  })
+
+  it('treats missing and corrupt localStorage JSON as invalid without deleting it', async () => {
+    const storage = createMemoryStorage()
+    vi.stubGlobal('localStorage', storage)
+    const delay = createAdaptiveDelay()
+    delay.importState({ version: 1, smoothedIntervalMs: 160 })
+    const persistence = createAdaptiveDelayPersistence(delay)
+
+    await expect(persistence.load()).resolves.toBe('invalid')
+    expect(delay.exportState().smoothedIntervalMs).toBe(160)
+
+    storage.setItem(LOCAL_STORAGE_KEY, '{"version":1')
+    await expect(persistence.load()).resolves.toBe('invalid')
+    expect(delay.exportState().smoothedIntervalMs).toBe(160)
+    expect(storage.getItem(LOCAL_STORAGE_KEY)).toBe('{"version":1')
+    expect(storage.removeItem).not.toHaveBeenCalled()
+  })
+
+  it('constructs without storage and rejects default operations with client guidance', async () => {
+    vi.stubGlobal('localStorage', undefined)
+    const delay = createAdaptiveDelay()
+    delay.importState({ version: 1, smoothedIntervalMs: 120 })
+    const persistence = createAdaptiveDelayPersistence(delay)
+    const expectedError = /client lifecycle or pass a custom adapter/
+
+    await expect(persistence.load()).rejects.toThrow(expectedError)
+    await expect(persistence.save()).rejects.toThrow(expectedError)
+    await expect(persistence.clear()).rejects.toThrow(expectedError)
+    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+  })
+
+  it('does not read a throwing localStorage getter until an operation runs', async () => {
+    const storageError = new Error('storage getter failed')
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw storageError
+      },
+    })
+
+    const persistence = createAdaptiveDelayPersistence(createAdaptiveDelay())
+    await expect(persistence.load()).rejects.toBe(storageError)
+  })
+
+  it('propagates localStorage read, write, and remove failures', async () => {
+    const readError = new Error('read failed')
+    const readStorage = createMemoryStorage()
+    vi.mocked(readStorage.getItem).mockImplementation(() => {
+      throw readError
+    })
+    vi.stubGlobal('localStorage', readStorage)
+
+    const delay = createAdaptiveDelay()
+    const persistence = createAdaptiveDelayPersistence(delay)
+    await expect(persistence.load()).rejects.toBe(readError)
+
+    const writeError = new Error('write failed')
+    const writeStorage = createMemoryStorage()
+    vi.mocked(writeStorage.setItem).mockImplementation(() => {
+      throw writeError
+    })
+    vi.stubGlobal('localStorage', writeStorage)
+    delay.importState({ version: 1, smoothedIntervalMs: 120 })
+    await expect(persistence.save()).rejects.toBe(writeError)
+
+    const removeError = new Error('remove failed')
+    const removeStorage = createMemoryStorage()
+    vi.mocked(removeStorage.removeItem).mockImplementation(() => {
+      throw removeError
+    })
+    vi.stubGlobal('localStorage', removeStorage)
+    await expect(persistence.clear()).rejects.toBe(removeError)
+    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+  })
+
+  it('reports built-in localStorage autosave failures through onError', async () => {
+    vi.useFakeTimers()
+    const writeError = new Error('quota exceeded')
+    const storage = createMemoryStorage()
+    vi.mocked(storage.setItem).mockImplementation(() => {
+      throw writeError
+    })
+    vi.stubGlobal('localStorage', storage)
+    const onError = vi.fn()
+    const delay = createAdaptiveDelay()
+    const persistence = createAdaptiveDelayPersistence(delay, { autosave: { onError } })
+
+    delay.importState({ version: 1, smoothedIntervalMs: 120 })
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(onError).toHaveBeenCalledWith(writeError)
+
+    persistence.dispose()
+  })
+
   it('supports synchronous and asynchronous adapters', async () => {
     let syncState: unknown
     const syncAdapter: AdaptiveDelayPersistenceAdapter = {
@@ -282,7 +430,10 @@ describe('createAdaptiveDelayPersistence', () => {
       clear: () => undefined,
     }
 
-    expect(() => createAdaptiveDelayPersistence(delay, null as never)).toThrow('adapter')
+    expect(() => createAdaptiveDelayPersistence(delay, null as never)).toThrow('options')
+    expect(() => createAdaptiveDelayPersistence(delay, { load: () => undefined } as never)).toThrow(
+      'adapter',
+    )
     expect(() => createAdaptiveDelayPersistence(delay, adapter, { autosave: {} as never })).toThrow(
       'onError',
     )

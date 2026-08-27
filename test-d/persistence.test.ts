@@ -24,11 +24,17 @@ const asyncAdapter: AdaptiveDelayPersistenceAdapter = {
 }
 
 const persistence = createAdaptiveDelayPersistence(delay, syncAdapter)
+const defaultPersistence = createAdaptiveDelayPersistence(delay)
+const defaultAutosaving = createAdaptiveDelayPersistence(delay, {
+  autosave: { onError: (error) => expectTypeOf(error).toEqualTypeOf<unknown>() },
+})
 const autosaving = createAdaptiveDelayPersistence(delay, asyncAdapter, {
   autosave: { onError: (error) => expectTypeOf(error).toEqualTypeOf<unknown>() },
 })
 
 expectTypeOf(persistence).toEqualTypeOf<AdaptiveDelayPersistence>()
+expectTypeOf(defaultPersistence).toEqualTypeOf<AdaptiveDelayPersistence>()
+expectTypeOf(defaultAutosaving).toEqualTypeOf<AdaptiveDelayPersistence>()
 expectTypeOf(persistence.load()).toEqualTypeOf<Promise<AdaptiveDelayImportResult>>()
 expectTypeOf(persistence.save()).toEqualTypeOf<Promise<void>>()
 expectTypeOf(persistence.flush()).toEqualTypeOf<Promise<void>>()
@@ -44,5 +50,7 @@ expectTypeOf<AdaptiveDelayPersistenceOptions>().toEqualTypeOf<
 
 // @ts-expect-error Autosave always requires an error callback.
 createAdaptiveDelayPersistence(delay, syncAdapter, { autosave: {} })
+// @ts-expect-error The built-in adapter intentionally uses one fixed package key.
+createAdaptiveDelayPersistence(delay, { key: 'custom' })
 // @ts-expect-error Adapter writes receive only version-one adaptive state.
 syncAdapter.save({ version: 1, smoothedIntervalMs: 'fast' })

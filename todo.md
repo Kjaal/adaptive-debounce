@@ -1,6 +1,6 @@
 # Adaptive Debounce Package — TODO
 
-Status: v1 implementation, automated verification, MIT public-package setup, and the sibling debugging playground are complete. `VERIFY-001` remains open for two real-device checks, and release-policy decisions remain. Working project and package name: `adaptive-debounce`.
+Status: 21 of 22 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, and the sibling debugging playground are complete. `PERSIST-002` adds the approved browser-local persistence default; `VERIFY-001` remains open for two real-device checks, and release-policy decisions remain. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
@@ -25,12 +25,15 @@ Complete one item per turn in dependency order. Decision items require user appr
 - [x] `CORE-002` Decision: approve the constant-memory clipped-EWMA timing model and deterministic cold start.
 - [x] `DEBOUNCE-001` Decision: approve promise-window concurrency, cancellation, and stale-result semantics.
 - [x] `CORE-003` Implement and test the bounded DOM-free timing engine after `PF-003`, `CORE-001`, and `CORE-002`.
+- [x] `CORE-004` Implemented the approved post-typing recommendation: estimate a five-character word time from the clipped EWMA, add a configurable `quietPeriodMs`, and clamp the result to revised bounds. The package defaults to minimum `500 ms`, initial `750 ms`, maximum `1,500 ms`, interval multiplier `5`, quiet period `350 ms`, smoothing `0.25`, and idle reset `2,000 ms`; the first qualifying interval uses a derived cold cadence prior with the same clipping and EWMA smoothing as later samples; `AdaptiveDelayStateV1` remains unchanged and content remains uninspected. Automated and live playground acceptance passed: cold `750 ms`, first `1.4 s` interval `850 ms`, maximum adjacent learned-delay change `197.59 ms`, zero mid-sentence saves across `120–400 ms` pauses, exactly one final quiet-period save, and bounded reset behavior.
+- [x] `CORE-005` Curved mature smoothing without changing the public API or state: the first accepted interval keeps the full configured `smoothing` weight, then later intervals use `smoothing / (1 + 2 × relative error)` so large mature changes move the recommendation less while sustained cadence still converges. Deterministic acceptance passed for exact arithmetic, fast first-sample learning, monotonic convergence, finite extremes, reset/import compatibility, and a supplied-trace jump reduced from about `225 ms` to `75.16 ms`; all package checks pass.
 - [x] `DEBOUNCE-002` Implement and test the typed debounce state machine after `CORE-003` and `DEBOUNCE-001`.
 
 ### 3. Optional subpaths and verification
 
-- [x] `BROWSER-001` Decision: use explicit observation, instance-owned profiles, adapter-owned persistence, and a clear server-call error.
+- [x] `BROWSER-001` Decision: use explicit observation, instance-owned profiles, explicit persistence, and clear server-call errors.
 - [x] `PERSIST-001` Implement and test the optional persistence entry point after `CORE-003`.
+- [x] `PERSIST-002` Use the fixed `adaptive-debounce:state` localStorage key when the persistence adapter is omitted, while preserving explicit load/save, opt-in autosave, custom adapters, SSR-safe import and construction, privacy-safe version-one state, and existing clear, disposal, and error behavior. Node, type, packed-consumer, build, Nuxt SSR-build, size, and performance acceptance pass.
 - [x] `BROWSER-002` Define browser input edge cases and cleanup behavior in tests after `CORE-003` and `BROWSER-001`.
 - [x] `BROWSER-003` Implement and test the optional observer after `BROWSER-002`.
 - [ ] `VERIFY-001` Verify SSR imports, Nuxt hydration, cleanup, privacy, package consumption, and the 16 kB target after `DEBOUNCE-002`, `PERSIST-001`, and `BROWSER-003`.
@@ -52,6 +55,8 @@ Complete one item per turn in dependency order. Decision items require user appr
   - Add cancel, flush, and adaptive-delay reset controls, and release observers, subscriptions, timers, and pending work during teardown.
   - Keep fake saves local. Add no backend, persistence, network calls, or telemetry.
   - Add a browser smoke test for rescheduling, firing, cancellation, flushing, and live delay updates. Measure playground output separately so it cannot hide a package-size regression.
+- [x] `DEMO-002` Extend the sibling debugger with a versioned, privacy-safe **Copy JSON output** snapshot and make timing changes visible. Acceptance: copy the complete bounded latest-100-event snapshot with no form values or other text input; include event-level typing intervals and signed delay deltas; show semantic color and text for events and positive/negative/zero changes; surface clipboard failures; cover the output and color semantics in Chromium; and verify the running localhost server responds without console warnings or errors.
+- [x] `DEMO-003` Add a privacy-safe live estimated WPM to the sibling debugger using the package's smoothed typing interval. Acceptance: show the estimate live, reset it with adaptive learning, include it in the copied JSON state, and cover initial, live, reset, and copied-output behavior in Chromium.
 
 Dependency order:
 
@@ -59,9 +64,12 @@ Dependency order:
 WF-002 → PF-003 → CORE-003
 CORE-003 → DEBOUNCE-002
 CORE-003 → PERSIST-001
+PERSIST-001 → PERSIST-002
 CORE-003 → BROWSER-002 → BROWSER-003
 DEBOUNCE-002 + PERSIST-001 + BROWSER-003 → VERIFY-001
-DEBOUNCE-002 + BROWSER-003 → DEMO-001 → final release policy
+DEBOUNCE-002 + BROWSER-003 → DEMO-001 → DEMO-002
+DEMO-002 → CORE-004 (user approval before any timing-model implementation)
+CORE-004 → CORE-005 → final release policy
 ```
 
 ## Implementation Checklist
@@ -81,6 +89,7 @@ DEBOUNCE-002 + BROWSER-003 → DEMO-001 → final release policy
 - [x] Keep the cold-start snapshot deterministic so server rendering and the initial client render cannot disagree.
 - [x] Start browser observation only from an explicit client lifecycle and support reliable cleanup on unmount and client-side navigation.
 - [x] Defer persisted-profile restoration and all other browser-only state until client execution.
+- [x] Keep default-persistence construction server-safe and reject browser-storage operations outside a client lifecycle with custom-adapter guidance.
 - [x] Make a browser-observer call on the server throw an actionable error.
 - [x] Add a plain Node import-safety test plus a Nuxt SSR/render-and-hydrate consumer fixture with hydration-warning detection.
 - [x] Document a Nuxt integration using its client lifecycle without requiring the core package to be wrapped in `ClientOnly` or disabling SSR.
@@ -98,7 +107,7 @@ DEBOUNCE-002 + BROWSER-003 → DEMO-001 → final release policy
 ### Adaptive timing model
 
 - [x] Use qualifying inter-record intervals as the only version-one adaptive signal.
-- [x] Use a deterministic `300 ms` cold-start delay before enough observations exist.
+- [x] Use a deterministic `750 ms` cold-start delay before enough observations exist.
 - [x] Use a robust bounded estimator so outliers do not cause large jumps.
 - [x] Smooth delay changes and clamp them to configurable minimum and maximum values.
 - [x] Start a new burst after a `2,000 ms` idle gap without erasing the learned interval.
@@ -128,7 +137,7 @@ DEBOUNCE-002 + BROWSER-003 → DEMO-001 → final release policy
 
 - [x] Keep all analysis local and perform no network requests or telemetry.
 - [x] Store timing/count metadata only; do not retain input values or individual characters.
-- [x] Keep profiles instance-local and add persistence only through the explicit optional adapter entry point.
+- [x] Keep profiles instance-local and expose persistence only through the explicit optional persistence entry point.
 - [x] Make persistence opt-in, versioned, resettable, and documented.
 - [x] Avoid observing password, payment, one-time-code, or explicitly excluded fields by default.
 
@@ -148,7 +157,7 @@ DEBOUNCE-002 + BROWSER-003 → DEMO-001 → final release policy
 
 - [x] Use deterministic clocks and fake timers for EWMA arithmetic, bounds, idle bursts, debounce windows, maximum wait, cancellation, flushing, errors, reentrancy, stale timers, and overlap.
 - [x] Cover bounded retained state, subscription teardown, atomic corrupt/versioned imports, and reset behavior.
-- [x] Cover serialized and coalesced persistence, autosave cleanup, clear races, adapter failures, and disposal.
+- [x] Cover default localStorage persistence, serialized and coalesced writes, autosave cleanup, clear races, adapter failures, and disposal.
 - [x] Add type tests for callback arguments, `this`, awaited results, controls, invalid options, and ESM/CommonJS declaration resolution.
 - [x] Add import-safety tests for every public entry point in environments without a DOM.
 - [x] Run automated browser tests for dynamic inputs, privacy exclusions, repeated keys, synthetic events, teardown, and server-call errors.
@@ -201,8 +210,8 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 - The root exports `createAdaptiveDelay`, `adaptiveDebounce`, and their public types. It exports no mutable singleton and no plain `debounce` alias.
 - Pass the callback itself to `adaptiveDebounce`; do not invoke it while constructing the wrapper.
 - `AdaptiveDelay` exposes `record()`, `getDelay()`, `reset()`, `subscribe()`, `exportState()`, and `importState()`.
-- Defaults are minimum `100 ms`, initial `300 ms`, maximum `1,000 ms`, smoothing `0.25`, interval multiplier `1.25`, and idle reset `2,000 ms`.
-- Use a constant-memory clipped EWMA: clamp each interval to `0.5×–2×` the estimate, smooth it, multiply by `1.25`, then clamp to the configured delay bounds.
+- Defaults are minimum `500 ms`, initial `750 ms`, maximum `1,500 ms`, smoothing `0.25`, interval multiplier `5`, quiet period `350 ms`, and idle reset `2,000 ms`.
+- Use a constant-memory clipped EWMA: derive a cold cadence prior from `(initialDelayMs - quietPeriodMs) / intervalMultiplier`, clamp each interval to `0.5×–2×` the current estimate, smooth the first accepted interval with the full configured weight, then curve mature weights as `smoothing / (1 + 2 × relative error)`. Multiply the result by `5`, add the `350 ms` quiet period, then clamp to the configured delay bounds.
 - The first record establishes a monotonic baseline. Ignore equal timestamps, begin a new burst after an idle gap without erasing learning, and reject regressing or non-finite clocks.
 - Notify subscribers synchronously after exportable state changes. State remains committed if a listener fails; run every listener, then rethrow the first error. Teardown is idempotent.
 - `AdaptiveDelayStateV1` is exactly `{ version: 1, smoothedIntervalMs: number | null }` and contains no text, identity, raw observations, or timestamps.
@@ -217,12 +226,13 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 - Reject the window promise on callback throws or rejections. Cancellation rejects with the supplied reason or a default `AbortError`.
 - A hard maximum wait may overlap an older async invocation. Windows settle independently, and already-started side effects are not treated as cancellable.
 
-### Optional subpaths (`BROWSER-001`, `PERSIST-001`)
+### Optional subpaths (`BROWSER-001`, `PERSIST-001`, `PERSIST-002`)
 
 - `adaptive-debounce/persistence` exports a sync-or-async storage adapter and `createAdaptiveDelayPersistence` without re-exporting them from the root.
+- Omitting the adapter uses browser localStorage under the fixed same-origin `adaptive-debounce:state` key. Imports and factory construction remain SSR-safe; storage operations resolve the browser global lazily and otherwise reject with client-lifecycle and custom-adapter guidance.
 - Persistence always exposes manual `load`, `save`, `flush`, and `clear`. Autosave is opt-in, trailing at `1,000 ms`, and requires an error callback; writes serialize and coalesce.
 - `clear()` resets memory immediately and prevents older queued writes from restoring deleted state. `dispose()` removes subscriptions and timers without implicitly saving.
-- Adapter closures own serialization, keys, user identity, consent, authentication, and storage location. The package provides no storage backend or network behavior.
+- The built-in adapter stores only version-one timing state and does not auto-load, auto-save, synchronize tabs, or make network requests. Custom adapters remain the path for scoped keys, consent, authentication, and other storage locations.
 - `adaptive-debounce/browser` exports `observeTyping(delay, { root? })` without re-exporting it from the root. Importing is SSR-safe; calling it without a browser throws clearly; omitted `root` resolves to the current document at call time.
 - Observe trusted typed insertions in eligible text controls and contenteditable roots. Ignore paste, deletion, autofill, undo, synthetic input, repeated keys, and intermediate IME events; record completed composition once. Never read values or input data. Follow [Input Events Level 2](https://www.w3.org/TR/input-events-2/) and the [UI Events composition model](https://w3c.github.io/uievents/split/composition-events.html).
 - When browser observation and debounce share an adaptive-delay instance, configure debounce with `recordCalls: false`.
@@ -230,7 +240,7 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 
 ### Deferred beyond version one
 
-- No WPM API, framework adapters, built-in storage backend, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation.
+- No WPM API, framework adapters, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation.
 - npm scope and reservation, repository visibility, semantic-versioning policy, browser-support policy, publishing, remote setup, and release remain outside this task.
 
 ## Suggested Milestones

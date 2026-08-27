@@ -64,6 +64,10 @@ try {
 
       assert.equal(typeof adaptiveDebounce, 'function')
       assert.equal(typeof createAdaptiveDelayPersistence, 'function')
+      assert.equal(
+        typeof createAdaptiveDelayPersistence(createAdaptiveDelay()).load,
+        'function',
+      )
       assert.throws(() => observeTyping(createAdaptiveDelay()), /requires a browser document/)
     `,
     'cjs.cjs': `
@@ -74,6 +78,10 @@ try {
 
       assert.equal(typeof adaptiveDebounce, 'function')
       assert.equal(typeof createAdaptiveDelayPersistence, 'function')
+      assert.equal(
+        typeof createAdaptiveDelayPersistence(createAdaptiveDelay()).load,
+        'function',
+      )
       assert.throws(() => observeTyping(createAdaptiveDelay()), /requires a browser document/)
     `,
     'consumer.ts': `
@@ -94,10 +102,16 @@ try {
         clear: () => undefined,
       }
       const persistence = createAdaptiveDelayPersistence(delay, adapter)
+      const defaultPersistence = createAdaptiveDelayPersistence(delay)
+      const defaultAutosaving = createAdaptiveDelayPersistence(delay, {
+        autosave: { onError: (_error: unknown) => undefined },
+      })
 
       void result
       void stop
       void persistence
+      void defaultPersistence
+      void defaultAutosaving
     `,
     'consumer.cts': `
       import adaptive = require('adaptive-debounce')
@@ -115,10 +129,13 @@ try {
       }
       const controls: persistence.AdaptiveDelayPersistence =
         persistence.createAdaptiveDelayPersistence(delay, adapter)
+      const defaultControls: persistence.AdaptiveDelayPersistence =
+        persistence.createAdaptiveDelayPersistence(delay)
 
       void result
       void stop
       void controls
+      void defaultControls
     `,
     'tsconfig.json': JSON.stringify(
       {

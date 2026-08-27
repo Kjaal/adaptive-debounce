@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `PERSIST-002` Added lazy browser localStorage persistence under a fixed same-origin key while preserving SSR-safe construction, explicit operations, opt-in autosave, and custom adapters.
+- `CORE-005` Curved mature EWMA weights by relative error to reduce large learned-delay jumps while preserving fast first-sample adaptation, public API, and version-one state.
+- `CORE-004` Completed the adaptive post-typing timing model, finite cold-prior fallback, automated coverage, and live playground validation.
+- `DEMO-003` Added a privacy-safe live estimated WPM to the sibling debugger from the package's smoothed typing interval, including reset behavior and copied JSON state with Chromium coverage.
+- `DEMO-002` Added a versioned privacy-safe Copy JSON diagnostic snapshot, bounded event metadata, interval and signed delay-delta visibility, semantic event colors, clipboard failure feedback, and Chromium coverage in the sibling playground.
 - `DEMO-001` Created and verified the separate Vue and shadcn-vue localhost debugger with live delay state, a bounded privacy-safe event timeline, lifecycle controls, manual real-OS checks, and browser coverage.
 - `PUBLIC-001` Adopted the MIT license, enabled public npm packaging, simplified the README, and scheduled a separate Vue debugging playground.
 - `BROWSER-003` Implemented the explicit SSR-safe browser observer with delegated listeners and idempotent teardown.

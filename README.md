@@ -31,7 +31,7 @@ try {
 ```
 
 Pass the callback itself: `adaptiveDebounce(saveDraft)`, not
-`adaptiveDebounce(saveDraft())`. The default starts at `300 ms`, learns from calls, and runs on the
+`adaptiveDebounce(saveDraft())`. The default starts at `750 ms`, learns from calls, and runs on the
 trailing edge.
 
 ### TypeScript
@@ -143,19 +143,90 @@ server and client.
 
 Adaptive timing and browser observation use timing metadata only. They never read input values or
 `InputEvent.data`, and the exported state contains only a version and one smoothed interval. The
-package has no telemetry, network behavior, runtime dependencies, or built-in storage.
+package has no telemetry, network behavior, or runtime dependencies.
 
 Like any debounce utility, the wrapper keeps the latest callback arguments until its pending
 window settles or is cancelled. Keep secrets out of callback arguments when that matters.
 
-Persistence is opt-in through `adaptive-debounce/persistence`. Your adapter owns consent, keys,
-serialization, access control, and storage. Call `dispose()` during teardown when autosave is used.
+Persistence is opt-in through `adaptive-debounce/persistence`. With no adapter, it uses browser
+`localStorage` under the fixed same-origin key `adaptive-debounce:state`. Creating the controls is
+SSR-safe; when using the built-in adapter, call `load()`, `save()`, and `clear()` only during client
+execution.
+
+```js
+import { createAdaptiveDelay } from 'adaptive-debounce'
+import { createAdaptiveDelayPersistence } from 'adaptive-debounce/persistence'
+
+const delay = createAdaptiveDelay()
+const persistence = createAdaptiveDelayPersistence(delay, {
+  autosave: {
+    onError(error) {
+      console.error('Could not save adaptive timing', error)
+    },
+  },
+})
+
+// Run from your browser or framework client-mount lifecycle.
+await persistence.load()
+
+// On teardown:
+persistence.dispose()
+```
+
+Loading and saving are explicit unless autosave is enabled. Without autosave, call
+`await persistence.save()` when you want to keep the current profile. Autosave waits `1,000 ms`
+after the latest timing change. Manual storage failures reject their promise; background failures
+go to `onError`.
+
+The package does not prompt for storage consent. Load, save, or enable autosave only when your
+application's policy permits it.
+
+`localStorage` is browser-managed, not garbage-collected when JavaScript objects are released. It
+survives same-origin navigation and browser restarts until `clear()`, site-data removal, or browser
+policy removes it. Pages using the fixed key see the latest value when they call `load()`; writes
+are last-write-wins and open tabs are not synchronized live.
+
+Pass a custom adapter for per-user, per-form, or per-tenant keys, another backend, or a different
+consent policy:
+
+```js
+const persistence = createAdaptiveDelayPersistence(delay, profileAdapter)
+```
+
+Custom adapters own their keys, serialization, access control, and storage. `dispose()` stops
+autosave without saving or clearing data.
 
 ## Defaults and options
 
-The adaptive delay defaults to a `100-1,000 ms` range, a `300 ms` cold start, and a `2,000 ms` idle
-reset. Configure `createAdaptiveDelay()` to change those values. Configure `adaptiveDebounce()`
-with `leading`, `trailing`, `maxWait`, and `recordCalls` when the defaults do not fit.
+The adaptive delay defaults to a `500-1,500 ms` range, a `750 ms` cold start, a `5×` interval
+multiplier, a `350 ms` quiet period, and a `2,000 ms` idle reset. After the first timing sample,
+the recommendation is the estimated five-character word time plus the quiet period, clamped to the
+configured bounds. This is a timing heuristic, not content or punctuation detection: the package
+never reads the input to decide whether a sentence is complete.
+
+Before a qualifying interval exists, `getDelay()` stays at `initialDelayMs`. The first interval is
+compared with a derived cold cadence prior, clipped to the same `0.5×-2×` range as later samples,
+and smoothed with the full configured `smoothing` weight so learning starts quickly. For later
+intervals, `smoothing` is the maximum weight: a reciprocal relative-error curve gives larger
+changes less weight while similar intervals settle quickly. This keeps mature recommendations from
+jumping with a single unusually fast or slow interval. Finite options remain accepted
+independently; if their inverse prior is non-positive or non-finite, the default `80 ms` cadence
+prior is used for that first sample.
+
+Configure `createAdaptiveDelay()` when a workflow needs different bounds or timing behavior:
+
+```ts
+const delay = createAdaptiveDelay({
+  minimumDelayMs: 500,
+  initialDelayMs: 750,
+  maximumDelayMs: 1_500,
+  intervalMultiplier: 5,
+  quietPeriodMs: 350,
+})
+```
+
+Configure `adaptiveDebounce()` with `leading`, `trailing`, `maxWait`, and `recordCalls` when the
+debounce lifecycle does not fit the defaults.
 
 ## License
 

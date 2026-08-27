@@ -38,11 +38,55 @@ describe('adaptiveDebounce', () => {
     const callback = vi.fn(() => 'done')
     const promise = adaptiveDebounce(callback)()
 
-    await vi.advanceTimersByTimeAsync(299)
+    await vi.advanceTimersByTimeAsync(749)
     expect(callback).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
 
     await expect(promise).resolves.toBe('done')
+  })
+
+  it('waits through ordinary continued typing and saves after a sentence-level pause', async () => {
+    const cadenceMs = 200
+    const continuationPauseMs = 400
+    const oldCadenceDelayMs = cadenceMs * 1.25
+    const newCadenceDelayMs = cadenceMs * 5 + 350
+    let clockTimeMs = 0
+    const delay = createAdaptiveDelay({
+      clock: () => clockTimeMs,
+    })
+    const callback = vi.fn((value: string) => value)
+    const debounced = adaptiveDebounce(callback, {
+      delay,
+      recordCalls: false,
+    })
+
+    expect(oldCadenceDelayMs).toBeLessThan(continuationPauseMs)
+    expect(newCadenceDelayMs).toBeGreaterThan(continuationPauseMs)
+
+    delay.record()
+    const first = debounced('first')
+    await vi.advanceTimersByTimeAsync(cadenceMs)
+    clockTimeMs = cadenceMs
+    delay.record()
+    const second = debounced('second')
+    expect(second).toBe(first)
+
+    await vi.advanceTimersByTimeAsync(continuationPauseMs)
+    expect(callback).not.toHaveBeenCalled()
+    clockTimeMs = 600
+    delay.record()
+    expect(delay.getDelay()).toBeCloseTo(891.666_666_666_666_6, 12)
+    const third = debounced('third')
+    expect(third).toBe(first)
+    expect(callback).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(890)
+    expect(callback).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(2)
+    await expect(first).resolves.toBe('third')
+    expect(callback).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenLastCalledWith('third')
   })
 
   it('records and samples shared adaptive delays once per call unless disabled', async () => {
@@ -58,7 +102,7 @@ describe('adaptiveDebounce', () => {
     expect(first).toBe(second)
     expect(record).toHaveBeenCalledTimes(2)
     expect(getDelay).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(100)
+    await vi.runAllTimersAsync()
     await expect(first).resolves.toBe('second')
 
     const observedDelay = createAdaptiveDelay()

@@ -9,11 +9,12 @@ import {
 } from '../src/index'
 
 const delay = createAdaptiveDelay({
-  minimumDelayMs: 100,
-  initialDelayMs: 300,
-  maximumDelayMs: 1_000,
+  minimumDelayMs: 500,
+  initialDelayMs: 750,
+  maximumDelayMs: 1_500,
   smoothing: 0.25,
-  intervalMultiplier: 1.25,
+  intervalMultiplier: 5,
+  quietPeriodMs: 350,
   idleResetMs: 2_000,
   clock: () => 0,
 })
@@ -37,6 +38,7 @@ expectTypeOf<AdaptiveDelayOptions>().toMatchTypeOf<
     maximumDelayMs?: number
     smoothing?: number
     intervalMultiplier?: number
+    quietPeriodMs?: number
     idleResetMs?: number
     clock?: () => number
   }>

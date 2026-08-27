@@ -1,9 +1,12 @@
-const DEFAULT_MINIMUM_DELAY_MS = 100
-const DEFAULT_INITIAL_DELAY_MS = 300
-const DEFAULT_MAXIMUM_DELAY_MS = 1_000
+const DEFAULT_MINIMUM_DELAY_MS = 500
+const DEFAULT_INITIAL_DELAY_MS = 750
+const DEFAULT_MAXIMUM_DELAY_MS = 1_500
 const DEFAULT_SMOOTHING = 0.25
-const DEFAULT_INTERVAL_MULTIPLIER = 1.25
+const DEFAULT_INTERVAL_MULTIPLIER = 5
+const DEFAULT_QUIET_PERIOD_MS = 350
 const DEFAULT_IDLE_RESET_MS = 2_000
+const DEFAULT_COLD_CADENCE_MS =
+  (DEFAULT_INITIAL_DELAY_MS - DEFAULT_QUIET_PERIOD_MS) / DEFAULT_INTERVAL_MULTIPLIER
 
 /** The result of attempting to restore an adaptive delay state. */
 export type AdaptiveDelayImportResult = 'imported' | 'invalid' | 'unsupported-version'
@@ -19,16 +22,18 @@ export type AdaptiveDelayListener = (delayMs: number) => void
 
 /** Configuration for {@link createAdaptiveDelay}. */
 export interface AdaptiveDelayOptions {
-  /** Smallest recommended delay, in milliseconds. @defaultValue 100 */
+  /** Smallest recommended delay, in milliseconds. @defaultValue 500 */
   readonly minimumDelayMs?: number
-  /** Cold-start delay, in milliseconds. @defaultValue 300 */
+  /** Cold-start delay, in milliseconds. @defaultValue 750 */
   readonly initialDelayMs?: number
-  /** Largest recommended delay, in milliseconds. @defaultValue 1000 */
+  /** Largest recommended delay, in milliseconds. @defaultValue 1500 */
   readonly maximumDelayMs?: number
-  /** EWMA weight applied to each clipped interval. @defaultValue 0.25 */
+  /** Maximum EWMA weight; mature relative changes use a smaller curved weight. @defaultValue 0.25 */
   readonly smoothing?: number
-  /** Multiplier applied to the smoothed interval. @defaultValue 1.25 */
+  /** Multiplier applied to the smoothed interval. @defaultValue 5 */
   readonly intervalMultiplier?: number
+  /** Quiet pause added after the estimated word-time, in milliseconds. @defaultValue 350 */
+  readonly quietPeriodMs?: number
   /** Gap that starts a new typing burst, in milliseconds. @defaultValue 2000 */
   readonly idleResetMs?: number
   /** Monotonic clock used by {@link AdaptiveDelay.record}. */
@@ -61,6 +66,8 @@ interface ResolvedAdaptiveDelayOptions {
   readonly maximumDelayMs: number
   readonly smoothing: number
   readonly intervalMultiplier: number
+  readonly quietPeriodMs: number
+  readonly coldCadenceMs: number
   readonly idleResetMs: number
   readonly clock: () => number
 }
@@ -86,6 +93,7 @@ function resolveOptions(options: AdaptiveDelayOptions | undefined): ResolvedAdap
     maximumDelayMs = DEFAULT_MAXIMUM_DELAY_MS,
     smoothing = DEFAULT_SMOOTHING,
     intervalMultiplier = DEFAULT_INTERVAL_MULTIPLIER,
+    quietPeriodMs = DEFAULT_QUIET_PERIOD_MS,
     idleResetMs = DEFAULT_IDLE_RESET_MS,
     clock = defaultClock,
   } = options ?? {}
@@ -95,6 +103,7 @@ function resolveOptions(options: AdaptiveDelayOptions | undefined): ResolvedAdap
   assertFiniteNumber(maximumDelayMs, 'maximumDelayMs')
   assertFiniteNumber(smoothing, 'smoothing')
   assertFiniteNumber(intervalMultiplier, 'intervalMultiplier')
+  assertFiniteNumber(quietPeriodMs, 'quietPeriodMs')
   assertFiniteNumber(idleResetMs, 'idleResetMs')
 
   if (minimumDelayMs < 0) {
@@ -112,6 +121,9 @@ function resolveOptions(options: AdaptiveDelayOptions | undefined): ResolvedAdap
   if (intervalMultiplier <= 0) {
     throw new RangeError('intervalMultiplier must be greater than 0.')
   }
+  if (quietPeriodMs < 0) {
+    throw new RangeError('quietPeriodMs must be greater than or equal to 0.')
+  }
   if (idleResetMs <= 0) {
     throw new RangeError('idleResetMs must be greater than 0.')
   }
@@ -119,12 +131,17 @@ function resolveOptions(options: AdaptiveDelayOptions | undefined): ResolvedAdap
     throw new TypeError('clock must be a function.')
   }
 
+  const coldCadenceMs = (initialDelayMs - quietPeriodMs) / intervalMultiplier
+
   return {
     minimumDelayMs,
     initialDelayMs,
     maximumDelayMs,
     smoothing,
     intervalMultiplier,
+    quietPeriodMs,
+    coldCadenceMs:
+      Number.isFinite(coldCadenceMs) && coldCadenceMs > 0 ? coldCadenceMs : DEFAULT_COLD_CADENCE_MS,
     idleResetMs,
     clock,
   }
@@ -188,6 +205,8 @@ export function createAdaptiveDelay(options?: AdaptiveDelayOptions): AdaptiveDel
     maximumDelayMs,
     smoothing,
     intervalMultiplier,
+    quietPeriodMs,
+    coldCadenceMs,
     idleResetMs,
     clock,
   } = resolveOptions(options)
@@ -203,7 +222,7 @@ export function createAdaptiveDelay(options?: AdaptiveDelayOptions): AdaptiveDel
 
     return Math.min(
       maximumDelayMs,
-      Math.max(minimumDelayMs, smoothedIntervalMs * intervalMultiplier),
+      Math.max(minimumDelayMs, smoothedIntervalMs * intervalMultiplier + quietPeriodMs),
     )
   }
 
@@ -264,16 +283,16 @@ export function createAdaptiveDelay(options?: AdaptiveDelayOptions): AdaptiveDel
       return
     }
 
-    if (smoothedIntervalMs === null) {
-      commit(intervalMs)
-      return
-    }
-
+    const currentIntervalMs = smoothedIntervalMs ?? coldCadenceMs
     const clippedIntervalMs = Math.min(
-      smoothedIntervalMs * 2,
-      Math.max(smoothedIntervalMs * 0.5, intervalMs),
+      currentIntervalMs * 2,
+      Math.max(currentIntervalMs * 0.5, intervalMs),
     )
-    commit(smoothedIntervalMs + smoothing * (clippedIntervalMs - smoothedIntervalMs))
+    const errorMs = clippedIntervalMs - currentIntervalMs
+    const relativeError = Math.abs(errorMs) / currentIntervalMs
+    const effectiveSmoothing =
+      smoothedIntervalMs === null ? smoothing : smoothing / (1 + 2 * relativeError)
+    commit(currentIntervalMs + effectiveSmoothing * errorMs)
   }
 
   const reset = (): void => {

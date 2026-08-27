@@ -5,8 +5,11 @@ import type {
 } from './adaptive-delay.js'
 
 const AUTOSAVE_WAIT_MS = 1_000
+const LOCAL_STORAGE_KEY = 'adaptive-debounce:state'
+const LOCAL_STORAGE_UNAVAILABLE_MESSAGE =
+  'Built-in persistence requires browser localStorage; call persistence methods during a client lifecycle or pass a custom adapter.'
 
-/** A storage boundary whose implementation owns keys, serialization, and access policy. */
+/** A custom storage boundary whose implementation owns keys, serialization, and access policy. */
 export interface AdaptiveDelayPersistenceAdapter {
   /** Reads untrusted persisted data. */
   load(): unknown | PromiseLike<unknown>
@@ -50,24 +53,75 @@ interface SaveBatch {
   readonly reject: (error: unknown) => void
 }
 
+const localStorageAdapter: AdaptiveDelayPersistenceAdapter = {
+  load(): unknown {
+    const serialized = getLocalStorage().getItem(LOCAL_STORAGE_KEY)
+    if (serialized === null) {
+      return undefined
+    }
+
+    try {
+      return JSON.parse(serialized)
+    } catch {
+      return undefined
+    }
+  },
+  save(state): void {
+    getLocalStorage().setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({
+        version: state.version,
+        smoothedIntervalMs: state.smoothedIntervalMs,
+      }),
+    )
+  },
+  clear(): void {
+    getLocalStorage().removeItem(LOCAL_STORAGE_KEY)
+  },
+}
+
 /**
- * Connects an adaptive delay to an application-owned persistence adapter.
+ * Connects an adaptive delay to browser localStorage or a custom persistence adapter.
+ *
+ * The built-in adapter uses the same-origin `adaptive-debounce:state` key. Creating the controls is
+ * SSR-safe; call storage operations during a client lifecycle. Loading and saving remain explicit
+ * unless autosave is enabled.
  *
  * @example
  * ```ts
- * const persistence = createAdaptiveDelayPersistence(delay, adapter)
+ * const persistence = createAdaptiveDelayPersistence(delay)
  * await persistence.load()
  * await persistence.save()
  * ```
  */
 export function createAdaptiveDelayPersistence(
   delay: AdaptiveDelay,
+  options?: AdaptiveDelayPersistenceOptions,
+): AdaptiveDelayPersistence
+export function createAdaptiveDelayPersistence(
+  delay: AdaptiveDelay,
   adapter: AdaptiveDelayPersistenceAdapter,
+  options?: AdaptiveDelayPersistenceOptions,
+): AdaptiveDelayPersistence
+export function createAdaptiveDelayPersistence(
+  delay: AdaptiveDelay,
+  adapterOrOptions?: AdaptiveDelayPersistenceAdapter | AdaptiveDelayPersistenceOptions,
   options?: AdaptiveDelayPersistenceOptions,
 ): AdaptiveDelayPersistence {
   validateDelay(delay)
-  validateAdapter(adapter)
-  const autosave = validateOptions(options)
+
+  let adapter: AdaptiveDelayPersistenceAdapter
+  let persistenceOptions: AdaptiveDelayPersistenceOptions | undefined
+  if (options !== undefined || hasAdapterMember(adapterOrOptions)) {
+    validateAdapter(adapterOrOptions)
+    adapter = adapterOrOptions
+    persistenceOptions = options
+  } else {
+    adapter = localStorageAdapter
+    persistenceOptions = adapterOrOptions as AdaptiveDelayPersistenceOptions | undefined
+  }
+
+  const autosave = validateOptions(persistenceOptions)
 
   let generation = 0
   let disposed = false
@@ -284,15 +338,22 @@ function validateDelay(delay: AdaptiveDelay): void {
   }
 }
 
-function validateAdapter(adapter: AdaptiveDelayPersistenceAdapter): void {
+function validateAdapter(adapter: unknown): asserts adapter is AdaptiveDelayPersistenceAdapter {
   if (
     !isObject(adapter) ||
+    !('load' in adapter) ||
+    !('save' in adapter) ||
+    !('clear' in adapter) ||
     typeof adapter.load !== 'function' ||
     typeof adapter.save !== 'function' ||
     typeof adapter.clear !== 'function'
   ) {
     throw new TypeError('adapter must provide load, save, and clear methods.')
   }
+}
+
+function hasAdapterMember(value: unknown): boolean {
+  return isObject(value) && ('load' in value || 'save' in value || 'clear' in value)
 }
 
 function validateOptions(
@@ -318,4 +379,12 @@ function validateOptions(
 
 function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
+}
+
+function getLocalStorage(): Storage {
+  const storage = globalThis.localStorage
+  if (!storage) {
+    throw new Error(LOCAL_STORAGE_UNAVAILABLE_MESSAGE)
+  }
+  return storage
 }
