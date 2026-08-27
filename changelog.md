@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `FRAMEWORK-001` Scheduled an architecture decision for optional Nuxt, Vue, and React integrations; implementation task IDs remain deferred until the app/provider scope, lifecycle, packaging, support, isolation, cleanup, and validation contracts are explicitly approved.
+- `RELEASE-001` Rejected timer durations above the platform-safe maximum, added strict persistence-option validation, bounded stalled persistence lifecycle operations, made clean-checkout packing deterministic, kept standalone artifact checks fresh without rebuilding each step of the aggregate check, removed inert dependency-age exclusions, added concise contribution, security, conduct, and release guidance, documented state interoperability and sensitive-control boundaries, reconciled historical task traceability, and kept the sibling playground outside package release gating.
 - `PERSIST-002` Added lazy browser localStorage persistence under a fixed same-origin key while preserving SSR-safe construction, explicit operations, opt-in autosave, and custom adapters.
 - `CORE-005` Curved mature EWMA weights by relative error to reduce large learned-delay jumps while preserving fast first-sample adaptation, public API, and version-one state.
 - `CORE-004` Completed the adaptive post-typing timing model, finite cold-prior fallback, automated coverage, and live playground validation.
@@ -18,3 +20,4 @@
 - Automated `VERIFY-001` progress now covers CI, package consumption, SSR/Nuxt hydration, cleanup, privacy, bundle size, and a built-core CPU regression budget; real-device autofill and IME completion remain pending.
 - `WF-002` Recorded the approved v1 contracts, dependency order, promise-normalizing wrapper semantics, and shared domain terminology.
 - `WF-001` Made `todo.md` the canonical plan and added the per-turn task, changelog, and human-validation workflow.
+- `PF-001`, `PF-002`, `CORE-001`, `CORE-002`, `DEBOUNCE-001`, and `BROWSER-001` recorded the approved runtime, tooling, public API, adaptive model, debounce concurrency, and explicit browser-observation decisions that shaped the implementation tasks above.

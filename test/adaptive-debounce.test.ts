@@ -11,6 +11,8 @@ afterEach(() => {
 })
 
 describe('adaptiveDebounce', () => {
+  const maximumTimerDelayMs = 2_147_483_647
+
   it('shares one trailing promise and invokes with the latest arguments and this', async () => {
     const calls: string[] = []
     const debounced = adaptiveDebounce(function (this: { readonly prefix: string }, value: string) {
@@ -375,12 +377,66 @@ describe('adaptiveDebounce', () => {
 
   it('rejects invalid timing and invocation options', () => {
     expect(() => adaptiveDebounce(() => undefined, -1)).toThrow('finite, non-negative')
+    expect(() => adaptiveDebounce(() => undefined, Number.NaN)).toThrow('finite, non-negative')
     expect(() => adaptiveDebounce(() => undefined, { leading: false, trailing: false })).toThrow(
       'requires leading, trailing, or both',
     )
     expect(() => adaptiveDebounce(() => undefined, { maxWait: Number.POSITIVE_INFINITY })).toThrow(
       'finite, non-negative',
     )
+  })
+
+  it('accepts the platform-safe maximum without waiting for it', async () => {
+    const fixed = adaptiveDebounce(() => undefined, maximumTimerDelayMs)
+    const fixedPromise = fixed()
+    const fixedCancellation = expect(fixedPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fixed.pending()).toBe(true)
+    fixed.cancel()
+    await fixedCancellation
+
+    const maxWait = adaptiveDebounce(() => undefined, {
+      delay: maximumTimerDelayMs,
+      maxWait: maximumTimerDelayMs,
+    })
+    const maxWaitPromise = maxWait()
+    const maxWaitCancellation = expect(maxWaitPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(maxWait.pending()).toBe(true)
+    maxWait.cancel()
+    await maxWaitCancellation
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('rejects durations above the platform-safe maximum before scheduling', async () => {
+    const tooLarge = maximumTimerDelayMs + 1
+
+    expect(() => adaptiveDebounce(() => undefined, tooLarge)).toThrow(
+      `Delay must be at most ${maximumTimerDelayMs} milliseconds`,
+    )
+    expect(() => adaptiveDebounce(() => undefined, { delay: tooLarge })).toThrow(
+      `Delay must be at most ${maximumTimerDelayMs} milliseconds`,
+    )
+    expect(() => adaptiveDebounce(() => undefined, { maxWait: tooLarge })).toThrow(
+      `maxWait must be at most ${maximumTimerDelayMs} milliseconds`,
+    )
+
+    const delay = createAdaptiveDelay({
+      minimumDelayMs: maximumTimerDelayMs,
+      initialDelayMs: maximumTimerDelayMs,
+      maximumDelayMs: tooLarge,
+    })
+    const adaptive = adaptiveDebounce(() => undefined, { delay, recordCalls: false })
+    const sharedPromise = adaptive()
+    const rejection = expect(sharedPromise).rejects.toThrow(
+      `Adaptive delay must be at most ${maximumTimerDelayMs} milliseconds`,
+    )
+
+    expect(delay.importState({ version: 1, smoothedIntervalMs: tooLarge })).toBe('imported')
+    expect(adaptive()).toBe(sharedPromise)
+    await rejection
+
+    expect(adaptive.pending()).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
 

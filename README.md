@@ -86,9 +86,10 @@ saveLater.cancel()
 or `Element` as `root` to limit the observed area. Cleanup is idempotent.
 
 The observer records trusted typed insertions in eligible text controls. It ignores paste,
-deletion, autofill, undo, key repeat, synthetic events, and intermediate IME events. Password,
-payment, and one-time-code controls are excluded. Add `data-adaptive-debounce-ignore` to any
-control or ancestor that should not be observed.
+deletion, autofill, undo, key repeat, synthetic events, and intermediate IME events. Password
+inputs and controls whose standardized `autocomplete` tokens identify password, one-time-code, or
+payment data are excluded. Custom sensitive fields cannot be inferred: add
+`data-adaptive-debounce-ignore` to any control or ancestor that should not be observed.
 
 ## Controls and async behavior
 
@@ -105,6 +106,51 @@ the shared promise.
 
 `cancel()` cannot stop work that has already started. A configured `maxWait` can start a newer
 async invocation while an older one is still running, and each window settles independently.
+
+## State and third-party debouncers
+
+Use `getDelay()` with another debounce implementation when it can accept a new wait value. Subscribe
+when an already-pending timer should follow later recommendations:
+
+```js
+import { createAdaptiveDelay } from 'adaptive-debounce'
+
+const delay = createAdaptiveDelay()
+let timer
+
+async function savePendingDraft() {
+  return api.save(getCurrentDraft())
+}
+
+function scheduleSave() {
+  clearTimeout(timer)
+  timer = setTimeout(() => {
+    timer = undefined
+    void savePendingDraft().catch((error) => {
+      console.error('Could not save draft', error)
+    })
+  }, delay.getDelay())
+}
+
+const unsubscribe = delay.subscribe(() => {
+  if (timer !== undefined) scheduleSave()
+})
+
+scheduleSave() // Call whenever the application has new work to debounce.
+
+// Later, during teardown:
+unsubscribe()
+clearTimeout(timer)
+```
+
+`subscribe()` reports future state changes; it does not call the listener immediately. The package
+cannot mutate a third-party debouncer's active timer. Reschedule it as above, or cancel and recreate
+its pending timer/window if that library does not support updating the wait.
+
+`exportState()` returns a fresh privacy-safe snapshot. Restore it with `importState(snapshot)`,
+which returns `imported`, `invalid`, or `unsupported-version` without partially applying rejected
+input. `reset()` clears learned timing and returns the instance to its configured cold start. Both
+an accepted import and reset notify subscribers when the exported state changes.
 
 ## SSR and Nuxt
 
@@ -227,6 +273,12 @@ const delay = createAdaptiveDelay({
 
 Configure `adaptiveDebounce()` with `leading`, `trailing`, `maxWait`, and `recordCalls` when the
 debounce lifecycle does not fit the defaults.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local development and review expectations. Report
+suspected vulnerabilities privately as described in [SECURITY.md](./SECURITY.md), not in a public
+issue.
 
 ## License
 

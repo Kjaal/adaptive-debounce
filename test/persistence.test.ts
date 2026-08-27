@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createAdaptiveDelay } from '../src/adaptive-delay'
 import {
   type AdaptiveDelayPersistenceAdapter,
+  type AdaptiveDelayPersistenceOptions,
   createAdaptiveDelayPersistence,
 } from '../src/persistence'
 
@@ -290,6 +291,71 @@ describe('createAdaptiveDelayPersistence', () => {
     expect(maximumActiveWrites).toBe(1)
   })
 
+  it('shares one stalled load promise and starts a fresh load after it settles', async () => {
+    const read = deferred<unknown>()
+    const load = vi.fn(() => read.promise)
+    const adapter: AdaptiveDelayPersistenceAdapter = {
+      load,
+      save: () => undefined,
+      clear: () => undefined,
+    }
+    const delay = createAdaptiveDelay()
+    const persistence = createAdaptiveDelayPersistence(delay, adapter)
+
+    const first = persistence.load()
+    let duplicatesSharePromise = true
+    for (let index = 0; index < 50_000; index += 1) {
+      if (persistence.load() !== first) {
+        duplicatesSharePromise = false
+      }
+    }
+
+    expect(duplicatesSharePromise).toBe(true)
+    await vi.waitFor(() => expect(load).toHaveBeenCalledOnce())
+
+    read.resolve({ version: 1, smoothedIntervalMs: 180 })
+    await expect(first).resolves.toBe('imported')
+    expect(delay.exportState().smoothedIntervalMs).toBe(180)
+
+    const next = persistence.load()
+    expect(next).not.toBe(first)
+    await expect(next).resolves.toBe('imported')
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('shares one stalled clear promise and starts a fresh clear after it settles', async () => {
+    const clearing = deferred()
+    const clear = vi.fn(() => clearing.promise)
+    const adapter: AdaptiveDelayPersistenceAdapter = {
+      load: () => undefined,
+      save: () => undefined,
+      clear,
+    }
+    const delay = createAdaptiveDelay()
+    delay.importState({ version: 1, smoothedIntervalMs: 180 })
+    const persistence = createAdaptiveDelayPersistence(delay, adapter)
+
+    const first = persistence.clear()
+    let duplicatesSharePromise = true
+    for (let index = 0; index < 50_000; index += 1) {
+      if (persistence.clear() !== first) {
+        duplicatesSharePromise = false
+      }
+    }
+
+    expect(duplicatesSharePromise).toBe(true)
+    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+    await vi.waitFor(() => expect(clear).toHaveBeenCalledOnce())
+
+    clearing.resolve()
+    await expect(first).resolves.toBeUndefined()
+
+    const next = persistence.clear()
+    expect(next).not.toBe(first)
+    await expect(next).resolves.toBeUndefined()
+    expect(clear).toHaveBeenCalledTimes(2)
+  })
+
   it('uses one trailing autosave, flushes it immediately, and reports background errors', async () => {
     vi.useFakeTimers()
     const autosaveError = new Error('write failed')
@@ -360,23 +426,69 @@ describe('createAdaptiveDelayPersistence', () => {
     expect(stored).toBeUndefined()
   })
 
-  it('does not let a load that clear superseded restore old state', async () => {
+  it('coalesces clear during load, resets immediately, and ignores the stale load', async () => {
     const read = deferred<unknown>()
+    const cleared = deferred()
+    const load = vi.fn(() => read.promise)
+    const clear = vi.fn(() => cleared.promise)
     const adapter: AdaptiveDelayPersistenceAdapter = {
-      load: () => read.promise,
+      load,
       save: () => undefined,
-      clear: () => undefined,
+      clear,
+    }
+    const delay = createAdaptiveDelay()
+    delay.importState({ version: 1, smoothedIntervalMs: 120 })
+    const persistence = createAdaptiveDelayPersistence(delay, adapter)
+
+    const loading = persistence.load()
+    await vi.waitFor(() => expect(load).toHaveBeenCalledOnce())
+
+    const clearing = persistence.clear()
+    let duplicatesSharePromise = true
+    for (let index = 0; index < 50_000; index += 1) {
+      if (persistence.clear() !== clearing) {
+        duplicatesSharePromise = false
+      }
+    }
+
+    expect(duplicatesSharePromise).toBe(true)
+    expect(clear).not.toHaveBeenCalled()
+    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+    await expect(persistence.load()).rejects.toThrow('clear operation already pending')
+
+    read.resolve({ version: 1, smoothedIntervalMs: 200 })
+    await expect(loading).resolves.toBe('invalid')
+    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+    await vi.waitFor(() => expect(clear).toHaveBeenCalledOnce())
+
+    cleared.resolve()
+    await expect(clearing).resolves.toBeUndefined()
+    expect(clear).toHaveBeenCalledOnce()
+    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+  })
+
+  it('rejects load while clear is pending and recovers after the clear rejects', async () => {
+    const clearError = new Error('clear failed')
+    const clearing = deferred()
+    const load = vi.fn(() => ({ version: 1, smoothedIntervalMs: 200 }))
+    const adapter: AdaptiveDelayPersistenceAdapter = {
+      load,
+      save: () => undefined,
+      clear: () => clearing.promise,
     }
     const delay = createAdaptiveDelay()
     const persistence = createAdaptiveDelayPersistence(delay, adapter)
 
-    const loading = persistence.load()
-    const clearing = persistence.clear()
-    read.resolve({ version: 1, smoothedIntervalMs: 200 })
+    const activeClear = persistence.clear()
+    await expect(persistence.load()).rejects.toThrow('clear operation already pending')
+    expect(load).not.toHaveBeenCalled()
 
-    await expect(loading).resolves.toBe('invalid')
-    await clearing
-    expect(delay.exportState().smoothedIntervalMs).toBeNull()
+    clearing.reject(clearError)
+    await expect(activeClear).rejects.toBe(clearError)
+
+    await expect(persistence.load()).resolves.toBe('imported')
+    expect(load).toHaveBeenCalledOnce()
+    expect(delay.exportState().smoothedIntervalMs).toBe(200)
   })
 
   it('propagates manual adapter failures and continues the serialized queue', async () => {
@@ -437,5 +549,90 @@ describe('createAdaptiveDelayPersistence', () => {
     expect(() => createAdaptiveDelayPersistence(delay, adapter, { autosave: {} as never })).toThrow(
       'onError',
     )
+  })
+
+  it('validates every own option key without consuming inherited configuration', async () => {
+    vi.useFakeTimers()
+    const storage = createMemoryStorage()
+    vi.stubGlobal('localStorage', storage)
+    const delay = createAdaptiveDelay()
+    const save = vi.fn()
+    const adapter: AdaptiveDelayPersistenceAdapter = {
+      load: () => undefined,
+      save,
+      clear: () => undefined,
+    }
+    const expectedGuidance = /pass a custom adapter for scoped keys or storage backends/
+
+    expect(() => createAdaptiveDelayPersistence(delay, { key: 'custom' } as never)).toThrow(
+      expectedGuidance,
+    )
+    expect(() =>
+      createAdaptiveDelayPersistence(delay, adapter, { backend: 'memory' } as never),
+    ).toThrow(expectedGuidance)
+    expect(() =>
+      createAdaptiveDelayPersistence(delay, {
+        autosave: { onError: vi.fn(), waitMs: 250 },
+      } as never),
+    ).toThrow(expectedGuidance)
+
+    const unsupportedKey = Symbol('custom')
+    expect(() =>
+      createAdaptiveDelayPersistence(delay, { [unsupportedKey]: true } as never),
+    ).toThrow('Symbol(custom)')
+
+    const hiddenOptions = Object.defineProperty({}, 'key', { value: 'custom' })
+    expect(() => createAdaptiveDelayPersistence(delay, hiddenOptions as never)).toThrow(
+      expectedGuidance,
+    )
+
+    const hiddenAutosave = Object.defineProperty({ onError: vi.fn() }, 'waitMs', { value: 250 })
+    expect(() =>
+      createAdaptiveDelayPersistence(delay, adapter, { autosave: hiddenAutosave } as never),
+    ).toThrow(expectedGuidance)
+
+    const inheritedKeyOptions = Object.create({ key: 'custom' }) as AdaptiveDelayPersistenceOptions
+    const inheritedKeyPersistence = createAdaptiveDelayPersistence(delay, inheritedKeyOptions)
+    delay.importState({ version: 1, smoothedIntervalMs: 180 })
+    await inheritedKeyPersistence.save()
+    expect(storage.setItem).toHaveBeenCalledWith(
+      LOCAL_STORAGE_KEY,
+      '{"version":1,"smoothedIntervalMs":180}',
+    )
+    inheritedKeyPersistence.dispose()
+
+    const inheritedAutosaveOptions = Object.create({
+      autosave: { onError: vi.fn() },
+    }) as AdaptiveDelayPersistenceOptions
+    const inheritedPersistence = createAdaptiveDelayPersistence(
+      delay,
+      adapter,
+      inheritedAutosaveOptions,
+    )
+    delay.importState({ version: 1, smoothedIntervalMs: 190 })
+    expect(vi.getTimerCount()).toBe(0)
+    inheritedPersistence.dispose()
+
+    const inheritedOnError = Object.create({ onError: vi.fn() })
+    expect(() =>
+      createAdaptiveDelayPersistence(delay, adapter, {
+        autosave: inheritedOnError,
+      } as AdaptiveDelayPersistenceOptions),
+    ).toThrow('onError')
+
+    const nullPrototypeAutosave = Object.assign(Object.create(null), { onError: vi.fn() })
+    const nullPrototypeOptions = Object.assign(Object.create(null), {
+      autosave: nullPrototypeAutosave,
+    }) as AdaptiveDelayPersistenceOptions
+    const nullPrototypePersistence = createAdaptiveDelayPersistence(
+      delay,
+      adapter,
+      nullPrototypeOptions,
+    )
+    delay.importState({ version: 1, smoothedIntervalMs: 200 })
+    expect(vi.getTimerCount()).toBe(1)
+    expect(save).not.toHaveBeenCalled()
+    nullPrototypePersistence.dispose()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

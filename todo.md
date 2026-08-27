@@ -1,6 +1,6 @@
 # Adaptive Debounce Package — TODO
 
-Status: 21 of 22 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, and the sibling debugging playground are complete. `PERSIST-002` adds the approved browser-local persistence default; `VERIFY-001` remains open for two real-device checks, and release-policy decisions remain. Working project and package name: `adaptive-debounce`.
+Status: 22 of 24 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, and release hardening are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks, `FRAMEWORK-001` is an unapproved framework-integration architecture decision, and the exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
@@ -45,8 +45,10 @@ Complete one item per turn in dependency order. Decision items require user appr
 ### 4. Public package and debugging playground
 
 - [x] `PUBLIC-001` Adopt the MIT license, make the manifest publicly publishable, simplify the public README, and schedule the separate debugging playground without publishing a release.
+- [x] `RELEASE-001` Harden the public package without publishing: reject timer durations above the platform-safe maximum, validate persistence options strictly, bound stalled persistence lifecycle operations, build automatically before packing, keep standalone artifact checks fresh, add concise contribution and security policies, document state interoperability and sensitive-control boundaries, reconcile historical task traceability, and keep the sibling playground local-only and outside package release gating.
 - [x] `DEMO-001` Create a sibling localhost debugging playground after `DEBOUNCE-002` and `BROWSER-003` and before final release-policy work.
   - Completed in `../adaptive-debounce-playground` on `main` at `cc1b3efe`; its type check, production build, and Chromium smoke test pass.
+  - Treat the playground as local-only package-testing tooling. Its repository state and release are independent and do not gate packing or publishing this npm package.
   - Keep the package itself framework-neutral and free of runtime dependencies. The playground must consume the existing public API through a local packed artifact or workspace link; do not add debug-only package APIs.
   - Use Vue with Composition API, `<script setup lang="ts">`, and shadcn-vue for the playground UI.
   - Add a simple form whose inputs schedule fake saves. Show the current recommended delay live.
@@ -57,6 +59,17 @@ Complete one item per turn in dependency order. Decision items require user appr
   - Add a browser smoke test for rescheduling, firing, cancellation, flushing, and live delay updates. Measure playground output separately so it cannot hide a package-size regression.
 - [x] `DEMO-002` Extend the sibling debugger with a versioned, privacy-safe **Copy JSON output** snapshot and make timing changes visible. Acceptance: copy the complete bounded latest-100-event snapshot with no form values or other text input; include event-level typing intervals and signed delay deltas; show semantic color and text for events and positive/negative/zero changes; surface clipboard failures; cover the output and color semantics in Chromium; and verify the running localhost server responds without console warnings or errors.
 - [x] `DEMO-003` Add a privacy-safe live estimated WPM to the sibling debugger using the package's smoothed typing interval. Acceptance: show the estimate live, reset it with adaptive learning, include it in the copied JSON state, and cover initial, live, reset, and copied-output behavior in Chromium.
+
+### 5. Framework integrations (design only)
+
+- [ ] `FRAMEWORK-001` Decision: design the optional Nuxt/Vue/React integration topology and lifecycle contract before scheduling any adapter implementation. Acceptance criteria:
+  - Define one app/provider-scoped `AdaptiveDelay` and typing learner, one explicit client observer, and optional persistence lifecycle that survives client-side route changes.
+  - Preserve per-app, per-request, and per-provider isolation; never introduce a package/module mutable singleton; keep deterministic server state and SSR/hydration-safe construction.
+  - Ensure framework helpers create independent callback-scoped debouncers, timers, promise windows, and cancel/flush state so unrelated saves cannot cross-cancel; use `recordCalls: false` when a shared observer owns typing samples.
+  - Decide packaging topology and names (same-package subpaths versus companion packages), tested peer/support matrices, Vue plugin/composables, a Nuxt runtime plugin/module, React Provider/hooks, the observation target, persistence defaults, and whether route unmount cancels or flushes pending work.
+  - Preserve the unchanged framework-neutral root API, zero root runtime dependencies, the documented default size budget, and explicit listener/timer/subscription cleanup.
+  - Define acceptance coverage for SSR/request isolation, hydration, cross-route continuity, two independent callbacks, multi-app/provider isolation, Vue app teardown, Nuxt lifecycle and HMR, React Strict Mode, stale callbacks, unmount behavior, declarations, packed consumers, and separate adapter size measurements.
+  - Schedule implementation task IDs only after this decision is explicitly approved by the user.
 
 Dependency order:
 
@@ -70,7 +83,10 @@ DEBOUNCE-002 + PERSIST-001 + BROWSER-003 → VERIFY-001
 DEBOUNCE-002 + BROWSER-003 → DEMO-001 → DEMO-002
 DEMO-002 → CORE-004 (user approval before any timing-model implementation)
 CORE-004 → CORE-005 → final release policy
+FRAMEWORK-001 → future framework implementation task IDs, only after explicit approval
 ```
+
+`DEMO-001` through `DEMO-003` describe the local tester and are not dependencies of the npm release.
 
 ## Implementation Checklist
 
@@ -151,7 +167,8 @@ CORE-004 → CORE-005 → final release policy
 - [x] Mark side-effect-free modules correctly and verify tree shaking.
 - [x] Publish type declarations, source maps, and a clear exports map.
 - [x] Emit ES2020 ESM and CommonJS with `.d.mts` and `.d.cts`; verify consumer compatibility before promising a consumer `engines` range.
-- [ ] Define semantic-versioning and browser-support policies after the release choices are approved.
+- [x] Define the published-version policy as Semantic Versioning in `RELEASING.md`.
+- [ ] Define an exact runtime and browser-support policy after compatibility has been verified; the ES2020 output target alone is not a support promise.
 
 ### Testing
 
@@ -175,7 +192,7 @@ CORE-004 → CORE-005 → final release policy
 - [x] Document all defaults, edge behavior, errors, async semantics, and escape hatches.
 - [x] Add `changelog.md`.
 - [x] Add the approved MIT license and matching public package metadata.
-- [ ] Add contribution, security, and code-of-conduct files after repository visibility and release policies are approved.
+- [x] Add concise contribution, security, and code-of-conduct files, with hosted contact details intentionally deferred until a repository exists.
 - [x] Configure CI for formatting, linting, type checks, tests, builds, package checks, performance, and size checks.
 - [x] Dry-run the packed npm artifact and test it from clean ESM, CommonJS, JavaScript, and TypeScript consumers.
 
@@ -240,8 +257,8 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 
 ### Deferred beyond version one
 
-- No WPM API, framework adapters, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation.
-- npm scope and reservation, repository visibility, semantic-versioning policy, browser-support policy, publishing, remote setup, and release remain outside this task.
+- No WPM API, framework adapters, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation. Framework adapters remain deferred pending the `FRAMEWORK-001` architecture decision.
+- npm scope and reservation, repository visibility, browser-support policy, publishing, remote setup, and release remain outside this task.
 
 ## Suggested Milestones
 

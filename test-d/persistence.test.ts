@@ -1,4 +1,5 @@
 import { expectTypeOf } from 'vitest'
+import type { AdaptiveDelayImportResult, AdaptiveDelayStateV1 } from '../src/adaptive-delay'
 import { createAdaptiveDelay } from '../src/adaptive-delay'
 import {
   type AdaptiveDelayAutosaveOptions,
@@ -7,7 +8,6 @@ import {
   type AdaptiveDelayPersistenceOptions,
   createAdaptiveDelayPersistence,
 } from '../src/persistence'
-import type { AdaptiveDelayImportResult, AdaptiveDelayStateV1 } from '../src/adaptive-delay'
 
 const delay = createAdaptiveDelay()
 const syncAdapter: AdaptiveDelayPersistenceAdapter = {
@@ -52,5 +52,7 @@ expectTypeOf<AdaptiveDelayPersistenceOptions>().toEqualTypeOf<
 createAdaptiveDelayPersistence(delay, syncAdapter, { autosave: {} })
 // @ts-expect-error The built-in adapter intentionally uses one fixed package key.
 createAdaptiveDelayPersistence(delay, { key: 'custom' })
+// @ts-expect-error Autosave accepts only the required error boundary.
+createAdaptiveDelayPersistence(delay, { autosave: { onError: () => undefined, waitMs: 250 } })
 // @ts-expect-error Adapter writes receive only version-one adaptive state.
 syncAdapter.save({ version: 1, smoothedIntervalMs: 'fast' })

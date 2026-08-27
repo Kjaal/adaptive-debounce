@@ -4,13 +4,3 @@ overrides:
   '@nuxt/cli': 3.35.1
   '@nuxt/devtools': 3.2.3
   '@nuxt/kit': 4.4.2
-minimumReleaseAgeExclude:
-  - '@biomejs/biome@2.5.10'
-  - '@biomejs/cli-darwin-arm64@2.5.10'
-  - '@biomejs/cli-darwin-x64@2.5.10'
-  - '@biomejs/cli-linux-arm64-musl@2.5.10'
-  - '@biomejs/cli-linux-arm64@2.5.10'
-  - '@biomejs/cli-linux-x64-musl@2.5.10'
-  - '@biomejs/cli-linux-x64@2.5.10'
-  - '@biomejs/cli-win32-arm64@2.5.10'
-  - '@biomejs/cli-win32-x64@2.5.10'

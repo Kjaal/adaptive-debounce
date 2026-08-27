@@ -1,11 +1,13 @@
 import { type AdaptiveDelay, createAdaptiveDelay } from './adaptive-delay.js'
 
-/** A fixed delay in milliseconds or a live adaptive delay source. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+/** A fixed delay up to 2,147,483,647 milliseconds or a live adaptive delay source. */
 export type AdaptiveDebounceDelay = number | AdaptiveDelay
 
 /** Controls when an adaptive debounced callback runs. */
 export interface AdaptiveDebounceOptions {
-  /** Fixed or adaptive delay. Omit it to use a private adaptive delay. */
+  /** Fixed or adaptive delay; sampled values must not exceed 2,147,483,647 milliseconds. Omit it to use a private adaptive delay. */
   readonly delay?: AdaptiveDebounceDelay
   /** Whether each wrapper call records against an adaptive delay. Defaults to true for adaptive delays. */
   readonly recordCalls?: boolean
@@ -13,7 +15,7 @@ export interface AdaptiveDebounceOptions {
   readonly leading?: boolean
   /** Invoke after calls stop. Defaults to `true`. */
   readonly trailing?: boolean
-  /** Hard upper bound for an open window in milliseconds. */
+  /** Hard upper bound for an open window, up to 2,147,483,647 milliseconds. */
   readonly maxWait?: number
 }
 
@@ -68,6 +70,7 @@ interface DebounceWindow<This, Arguments extends unknown[], Result> {
  * Calls in one window share a promise and use the latest arguments and `this`.
  * A leading-only callback that reenters its wrapper rejects that window with a
  * `TypeError` to prevent direct and async promise-adoption cycles.
+ * Fixed, adaptive, and maximum-wait durations cannot exceed 2,147,483,647 milliseconds.
  *
  * @example
  * ```ts
@@ -397,6 +400,10 @@ function validateDelay(delay: AdaptiveDebounceDelay): AdaptiveDebounceDelay {
 function validateDuration(value: number, name: string): number {
   if (!Number.isFinite(value) || value < 0) {
     throw new RangeError(`${name} must be a finite, non-negative number`)
+  }
+
+  if (value > MAX_TIMER_DELAY_MS) {
+    throw new RangeError(`${name} must be at most ${MAX_TIMER_DELAY_MS} milliseconds`)
   }
 
   return value

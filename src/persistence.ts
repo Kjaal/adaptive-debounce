@@ -33,13 +33,19 @@ export interface AdaptiveDelayPersistenceOptions {
 
 /** Manual persistence controls for one adaptive-delay instance. */
 export interface AdaptiveDelayPersistence {
-  /** Loads and atomically imports an adapter value. */
+  /**
+   * Loads and atomically imports an adapter value. Concurrent loads share one promise; a load
+   * rejects while a clear is pending.
+   */
   load(): Promise<AdaptiveDelayImportResult>
   /** Queues the current state for a serialized write. */
   save(): Promise<void>
   /** Immediately runs a scheduled autosave and waits for queued writes. */
   flush(): Promise<void>
-  /** Resets memory immediately and clears persisted state after older writes. */
+  /**
+   * Resets memory immediately and clears persisted state after older writes. Concurrent clears
+   * share one promise; a clear during a load invalidates that load before clearing the adapter.
+   */
   clear(): Promise<void>
   /** Stops autosave without implicitly saving. Idempotent. */
   dispose(): void
@@ -129,6 +135,8 @@ export function createAdaptiveDelayPersistence(
   let autosaveTimer: ReturnType<typeof setTimeout> | undefined
   let pendingSave: SaveBatch | undefined
   let drainPromise: Promise<void> | undefined
+  let pendingLoad: Promise<AdaptiveDelayImportResult> | undefined
+  let pendingClear: Promise<void> | undefined
   let operationTail = Promise.resolve()
 
   const serialize = <Result>(operation: () => Result | PromiseLike<Result>): Promise<Result> => {
@@ -248,7 +256,7 @@ export function createAdaptiveDelayPersistence(
 
   const unsubscribe = autosave ? delay.subscribe(scheduleAutosave) : undefined
 
-  const load = async (): Promise<AdaptiveDelayImportResult> => {
+  const runLoad = async (): Promise<AdaptiveDelayImportResult> => {
     const loadGeneration = generation
     const state = await serialize(() => adapter.load())
     if (loadGeneration !== generation) {
@@ -263,6 +271,29 @@ export function createAdaptiveDelayPersistence(
     }
   }
 
+  const finishLoad = (finished: Promise<AdaptiveDelayImportResult>): void => {
+    if (pendingLoad === finished) {
+      pendingLoad = undefined
+    }
+  }
+
+  const load = (): Promise<AdaptiveDelayImportResult> => {
+    if (pendingClear) {
+      return rejectLifecycleConflict('load', 'clear')
+    }
+    if (pendingLoad) {
+      return pendingLoad
+    }
+
+    const promise = runLoad()
+    pendingLoad = promise
+    void promise.then(
+      () => finishLoad(promise),
+      () => finishLoad(promise),
+    )
+    return promise
+  }
+
   const flush = async (): Promise<void> => {
     const scheduledSave = cancelAutosave() ? enqueueSave() : undefined
     const activeDrain = drainPromise
@@ -274,7 +305,7 @@ export function createAdaptiveDelayPersistence(
     }
   }
 
-  const clear = async (): Promise<void> => {
+  const runClear = async (): Promise<void> => {
     generation += 1
     cancelAutosave()
     const supersededSave = pendingSave
@@ -307,6 +338,32 @@ export function createAdaptiveDelayPersistence(
     if (resetFailed) {
       throw resetError
     }
+  }
+
+  const finishClear = (finished: Promise<void>): void => {
+    if (pendingClear === finished) {
+      pendingClear = undefined
+    }
+  }
+
+  const clear = (): Promise<void> => {
+    if (pendingClear) {
+      return pendingClear
+    }
+
+    let resolve!: () => void
+    let reject!: (error: unknown) => void
+    const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise
+      reject = rejectPromise
+    })
+    pendingClear = promise
+    void runClear().then(resolve, reject)
+    void promise.then(
+      () => finishClear(promise),
+      () => finishClear(promise),
+    )
+    return promise
   }
 
   return {
@@ -365,16 +422,51 @@ function validateOptions(
   if (!isObject(options)) {
     throw new TypeError('persistence options must be an object.')
   }
+  rejectUnknownKeys(options, ['autosave'], 'persistence')
 
+  if (!hasOwn(options, 'autosave')) {
+    return undefined
+  }
   const { autosave } = options
   if (autosave === undefined) {
     return undefined
   }
-  if (!isObject(autosave) || typeof autosave.onError !== 'function') {
+  if (!isObject(autosave)) {
+    throw new TypeError('autosave requires an onError callback.')
+  }
+  rejectUnknownKeys(autosave, ['onError'], 'autosave')
+  if (!hasOwn(autosave, 'onError') || typeof autosave.onError !== 'function') {
     throw new TypeError('autosave requires an onError callback.')
   }
 
   return autosave
+}
+
+function rejectUnknownKeys(value: object, supportedKeys: readonly string[], scope: string): void {
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key === 'string' && supportedKeys.includes(key)) {
+      continue
+    }
+
+    throw new TypeError(
+      `${scope} options contain unsupported key "${String(key)}"; pass a custom adapter for scoped keys or storage backends.`,
+    )
+  }
+}
+
+function hasOwn(value: object, key: PropertyKey): boolean {
+  return Reflect.getOwnPropertyDescriptor(value, key) !== undefined
+}
+
+function rejectLifecycleConflict(
+  requested: 'load' | 'clear',
+  active: 'load' | 'clear',
+): Promise<never> {
+  return Promise.reject(
+    new Error(
+      `Cannot start ${requested}: ${active} operation already pending. Await it before starting another load or clear.`,
+    ),
+  )
 }
 
 function isObject(value: unknown): value is object {

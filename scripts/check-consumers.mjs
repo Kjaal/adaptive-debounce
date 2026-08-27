@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,7 +36,11 @@ function run(command, arguments_, cwd) {
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'adaptive-debounce-consumer-'))
 
 try {
-  await run(process.execPath, [pnpmCli, 'pack', '--pack-destination', temporaryRoot], projectRoot)
+  await run(
+    process.execPath,
+    [pnpmCli, 'pack', '--config.ignore-scripts=true', '--pack-destination', temporaryRoot],
+    projectRoot,
+  )
   const tarballName = (await readdir(temporaryRoot)).find((name) => name.endsWith('.tgz'))
   assert.ok(tarballName, 'pnpm pack did not create a tarball.')
 
@@ -93,6 +97,11 @@ try {
       } from 'adaptive-debounce/persistence'
 
       const delay = createAdaptiveDelay()
+      const unsubscribe = delay.subscribe((delayMs) => void delayMs)
+      const state = delay.exportState()
+      const importResult = delay.importState(state)
+      delay.reset()
+      unsubscribe()
       const debounced = adaptiveDebounce((value: number) => value * 2, 10)
       const result: Promise<number> = debounced(2)
       const stop: () => void = observeTyping(delay, { root: document })
@@ -108,6 +117,7 @@ try {
       })
 
       void result
+      void importResult
       void stop
       void persistence
       void defaultPersistence
@@ -169,6 +179,11 @@ try {
     process.execPath,
     [pnpmCli, 'install', '--frozen-lockfile=false', '--ignore-scripts'],
     consumerRoot,
+  )
+  await Promise.all(
+    ['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'SECURITY.md'].map((name) =>
+      access(join(consumerRoot, 'node_modules', 'adaptive-debounce', name)),
+    ),
   )
   await run(process.execPath, ['esm.mjs'], consumerRoot)
   await run(process.execPath, ['cjs.cjs'], consumerRoot)
