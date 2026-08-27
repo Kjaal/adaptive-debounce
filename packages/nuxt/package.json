@@ -1,0 +1,54 @@
+{
+  "name": "@adaptive-debounce/nuxt",
+  "version": "0.0.0",
+  "description": "Nuxt integration for adaptive-debounce.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "main": "./dist/module.mjs",
+  "module": "./dist/module.mjs",
+  "types": "./dist/module.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/module.d.mts",
+      "import": "./dist/module.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.runtime.json",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "prepack": "pnpm build",
+    "test": "vitest run --config vitest.config.ts && pnpm test:nuxt",
+    "test:nuxt": "pnpm build && nuxt typecheck test/fixtures/nuxt && nuxt build test/fixtures/nuxt",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@adaptive-debounce/vue": "workspace:^",
+    "@nuxt/kit": "~4.4.2",
+    "@nuxt/schema": "~4.4.2",
+    "adaptive-debounce": "workspace:^"
+  },
+  "peerDependencies": {
+    "nuxt": ">=4.4.0 <4.5.0",
+    "vue": ">=3.5.0 <4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.10",
+    "nuxt": "4.4.2",
+    "tsdown": "0.22.14",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "vue": "3.5.41",
+    "vue-tsc": "3.3.11"
+  }
+}

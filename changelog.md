@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `FRAMEWORK-001` Scheduled an architecture decision for optional Nuxt, Vue, and React integrations; implementation task IDs remain deferred until the app/provider scope, lifecycle, packaging, support, isolation, cleanup, and validation contracts are explicitly approved.
+- `FRAMEWORK-001` Implemented app-scoped Vue, Nuxt, and React companion packages with one shared learner per owner, independent callback timers, opt-in localStorage persistence, SSR-safe lifecycles, and explicit cleanup; added non-browser CI, isolation and Strict Mode tests, declarations, publint, packed-consumer checks, and separate size reporting while keeping the root dependency-free. Actual Nuxt client hydration, live HMR, and `HV-ADAPTIVE-DEBOUNCE-REACT-UNCOMMITTED-CALLBACK` remain pending before completion.
 - `RELEASE-001` Rejected timer durations above the platform-safe maximum, added strict persistence-option validation, bounded stalled persistence lifecycle operations, made clean-checkout packing deterministic, kept standalone artifact checks fresh without rebuilding each step of the aggregate check, removed inert dependency-age exclusions, added concise contribution, security, conduct, and release guidance, documented state interoperability and sensitive-control boundaries, reconciled historical task traceability, and kept the sibling playground outside package release gating.
 - `PERSIST-002` Added lazy browser localStorage persistence under a fixed same-origin key while preserving SSR-safe construction, explicit operations, opt-in autosave, and custom adapters.
 - `CORE-005` Curved mature EWMA weights by relative error to reduce large learned-delay jumps while preserving fast first-sample adaptation, public API, and version-one state.

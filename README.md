@@ -59,6 +59,76 @@ Use a fixed delay when adaptation is not needed:
 const saveLater = adaptiveDebounce(saveDraft, 300)
 ```
 
+## Framework packages
+
+Install one companion package at the application root when Vue, Nuxt, or React should own the
+typing learner for you:
+
+| Application | Package | Install once |
+| --- | --- | --- |
+| Vue 3 | `@adaptive-debounce/vue` | `app.use(createAdaptiveDebouncePlugin())` |
+| Nuxt 4 | `@adaptive-debounce/nuxt` | Add the module in `nuxt.config.ts` |
+| React 18 or 19 | `@adaptive-debounce/react` | Render `AdaptiveDebounceProvider` above the router |
+
+Each application receives one isolated learner and browser observer. Every debounced callback still
+has its own timer, arguments, promise, and cancel/flush controls, so typing in one form cannot cancel
+another form's save. There is no module-global runtime or cross-request state.
+
+### Vue
+
+```sh
+npm install adaptive-debounce @adaptive-debounce/vue
+```
+
+```ts
+import { createAdaptiveDebouncePlugin } from '@adaptive-debounce/vue'
+
+app.use(createAdaptiveDebouncePlugin({ persistence: true }))
+```
+
+Use `useAdaptiveDebouncedFn(saveDraft)` in any component. The `@adaptive-debounce/vue` package
+README covers its complete lifecycle and persistence controls.
+
+### Nuxt
+
+```sh
+npm install adaptive-debounce @adaptive-debounce/vue @adaptive-debounce/nuxt
+```
+
+```ts
+export default defineNuxtConfig({
+  modules: ['@adaptive-debounce/nuxt'],
+  adaptiveDebounce: { persistence: true },
+})
+```
+
+The module auto-imports `useAdaptiveDebouncedFn`, `useAdaptiveDelay`, and
+`useAdaptiveDebounceRuntime`. The `@adaptive-debounce/nuxt` package README covers module options and
+advanced setup.
+
+### React
+
+```sh
+npm install adaptive-debounce @adaptive-debounce/react
+```
+
+```tsx
+<AdaptiveDebounceProvider persistence>
+  <RouterProvider router={router} />
+</AdaptiveDebounceProvider>
+```
+
+Use `useAdaptiveDebouncedCallback(saveDraft)` in any descendant. The `@adaptive-debounce/react`
+package README covers Provider options and persistence controls.
+
+The app-owned learner survives client-side route changes. Persistence is opt-in: enabling it loads
+and autosaves timing metadata through the core package's default same-origin `localStorage`
+provider, so learning can also survive a hard reload. No package reads or stores input text.
+
+Component-owned callbacks are cancelled, not flushed, during teardown. If navigation must wait for
+a pending save, call and await that callback's `flush()` before navigating. App-owned observation,
+persistence timers, and subscriptions are stopped when the application owner unmounts.
+
 ## Browser observation
 
 Use the optional browser entry point when the delay should learn from typing rather than wrapper
@@ -152,9 +222,10 @@ which returns `imported`, `invalid`, or `unsupported-version` without partially 
 input. `reset()` clears learned timing and returns the instance to its configured cold start. Both
 an accepted import and reset notify subscribers when the exported state changes.
 
-## SSR and Nuxt
+## SSR and manual framework integration
 
-Every entry point is safe to import during SSR and prerendering. Start browser observation and load
+Every entry point is safe to import during SSR and prerendering. The companion packages handle the
+client lifecycle automatically. When using the core directly, start browser observation and load
 persisted state only during client execution.
 
 ```vue

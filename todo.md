@@ -1,6 +1,6 @@
 # Adaptive Debounce Package — TODO
 
-Status: 22 of 24 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, and release hardening are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks, `FRAMEWORK-001` is an unapproved framework-integration architecture decision, and the exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
+Status: 22 of 24 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, and release hardening are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
@@ -60,16 +60,21 @@ Complete one item per turn in dependency order. Decision items require user appr
 - [x] `DEMO-002` Extend the sibling debugger with a versioned, privacy-safe **Copy JSON output** snapshot and make timing changes visible. Acceptance: copy the complete bounded latest-100-event snapshot with no form values or other text input; include event-level typing intervals and signed delay deltas; show semantic color and text for events and positive/negative/zero changes; surface clipboard failures; cover the output and color semantics in Chromium; and verify the running localhost server responds without console warnings or errors.
 - [x] `DEMO-003` Add a privacy-safe live estimated WPM to the sibling debugger using the package's smoothed typing interval. Acceptance: show the estimate live, reset it with adaptive learning, include it in the copied JSON state, and cover initial, live, reset, and copied-output behavior in Chromium.
 
-### 5. Framework integrations (design only)
+### 5. Framework integrations
 
-- [ ] `FRAMEWORK-001` Decision: design the optional Nuxt/Vue/React integration topology and lifecycle contract before scheduling any adapter implementation. Acceptance criteria:
-  - Define one app/provider-scoped `AdaptiveDelay` and typing learner, one explicit client observer, and optional persistence lifecycle that survives client-side route changes.
-  - Preserve per-app, per-request, and per-provider isolation; never introduce a package/module mutable singleton; keep deterministic server state and SSR/hydration-safe construction.
-  - Ensure framework helpers create independent callback-scoped debouncers, timers, promise windows, and cancel/flush state so unrelated saves cannot cross-cancel; use `recordCalls: false` when a shared observer owns typing samples.
-  - Decide packaging topology and names (same-package subpaths versus companion packages), tested peer/support matrices, Vue plugin/composables, a Nuxt runtime plugin/module, React Provider/hooks, the observation target, persistence defaults, and whether route unmount cancels or flushes pending work.
-  - Preserve the unchanged framework-neutral root API, zero root runtime dependencies, the documented default size budget, and explicit listener/timer/subscription cleanup.
-  - Define acceptance coverage for SSR/request isolation, hydration, cross-route continuity, two independent callbacks, multi-app/provider isolation, Vue app teardown, Nuxt lifecycle and HMR, React Strict Mode, stale callbacks, unmount behavior, declarations, packed consumers, and separate adapter size measurements.
-  - Schedule implementation task IDs only after this decision is explicitly approved by the user.
+- [ ] `FRAMEWORK-001` Implement independent companion packages with provisional names `@adaptive-debounce/vue`, `@adaptive-debounce/nuxt`, and `@adaptive-debounce/react`. Acceptance criteria:
+  - [x] Create one app-, provider-, or request-scoped `AdaptiveDelay` and typing learner, one client observer, and an optional persistence lifecycle that survives client-side route changes.
+  - [x] Preserve per-app, per-request, and per-provider isolation; introduce no package/module mutable singleton; keep deterministic server state and SSR-safe construction.
+  - [x] Share the learner and recommended delay, not callback timers. Every helper creates an independent callback-scoped debouncer, promise window, and cancel/flush state, and uses `recordCalls: false` while the shared observer owns typing samples.
+  - [x] Provide a Vue plugin plus typed runtime, delay, and debounced-function composables. Component-owned callbacks dispose with their scope; app-owned observation, persistence, timers, and subscriptions dispose when the app unmounts.
+  - [x] Provide a Nuxt module installable from `nuxt.config.ts` that registers one universal runtime plugin per Nuxt app/request, reuses the Vue integration, starts client observation only after mounting, survives route changes, and has automated SSR/request-isolation coverage.
+  - [x] Provide a React Provider plus typed runtime, delay, and debounced-callback hooks with Provider isolation, independent callback timers, latest-callback behavior, Strict Mode lifecycle coverage, and unmount cancellation.
+  - [x] Keep persistence opt-in. When enabled without a custom adapter, use the core persistence entry point's default localStorage provider and fixed same-origin key; never read browser storage during server rendering or initial hydration.
+  - [x] Preserve the unchanged framework-neutral root API, zero root runtime dependencies, the documented core size budget, and explicit listener/timer/subscription cleanup.
+  - [x] Pass the non-browser framework checks for builds, types, tests, SSR/request isolation, public declarations, publint, packed consumers, and separate adapter size measurements.
+  - [ ] `HV-ADAPTIVE-DEBOUNCE-FRAMEWORK-HYDRATION` — `PENDING_HUMAN`: verify actual Nuxt client hydration without mismatch warnings.
+  - [ ] `HV-ADAPTIVE-DEBOUNCE-NUXT-HMR-DISPOSED` — `PENDING_HUMAN`: verify live Nuxt HMR leaves one active app runtime and cleans up the replaced runtime.
+  - [ ] `HV-ADAPTIVE-DEBOUNCE-REACT-UNCOMMITTED-CALLBACK` — `PENDING_HUMAN`: approve or revise how concurrent renders expose an uncommitted callback to already-pending work.
 
 Dependency order:
 
@@ -83,7 +88,7 @@ DEBOUNCE-002 + PERSIST-001 + BROWSER-003 → VERIFY-001
 DEBOUNCE-002 + BROWSER-003 → DEMO-001 → DEMO-002
 DEMO-002 → CORE-004 (user approval before any timing-model implementation)
 CORE-004 → CORE-005 → final release policy
-FRAMEWORK-001 → future framework implementation task IDs, only after explicit approval
+FRAMEWORK-001 → independent Vue, Nuxt, and React companion packages
 ```
 
 `DEMO-001` through `DEMO-003` describe the local tester and are not dependencies of the npm release.
@@ -147,7 +152,7 @@ FRAMEWORK-001 → future framework implementation task IDs, only after explicit 
 - [x] Design a small timing-source API that other debounce implementations can sample or subscribe to.
 - [x] Document the limitation that third-party debouncers must expose a way to update or recreate their timer; the package cannot mutate every implementation automatically.
 - [x] Provide framework-neutral JavaScript and TypeScript examples first.
-- [x] Add no framework adapters; keep them deferred until a real integration need is identified.
+- [x] Keep framework adapters out of the root package; approved companion packages are tracked by `FRAMEWORK-001`.
 
 ### Privacy and safety
 
@@ -257,7 +262,7 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 
 ### Deferred beyond version one
 
-- No WPM API, framework adapters, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation. Framework adapters remain deferred pending the `FRAMEWORK-001` architecture decision.
+- No WPM API, root-package framework adapters, telemetry, UI-purpose presets, animation-preference claims, or actual load-time manipulation. The approved Vue, Nuxt, and React companion packages are tracked by `FRAMEWORK-001`.
 - npm scope and reservation, repository visibility, browser-support policy, publishing, remote setup, and release remain outside this task.
 
 ## Suggested Milestones
