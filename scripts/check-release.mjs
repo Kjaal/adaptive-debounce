@@ -15,7 +15,7 @@ const internalPackageNames = new Set([
   '@adaptive-debounce/nuxt',
 ])
 
-const packageSpecs = [
+export const packageSpecs = [
   {
     key: 'core',
     name: 'adaptive-debounce',
@@ -270,37 +270,46 @@ async function readSourceManifests(projectRoot) {
 }
 
 export function validatePublishWorkflow(contents) {
-  const publishLines = contents
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('npm publish '))
+  const workflowLines = contents.split(/\r?\n/).map((line) => line.trim())
+  const publishLines = workflowLines.filter(
+    (line) => line === 'node scripts/publish-release.mjs publish',
+  )
+  const inlinePublishLines = workflowLines.filter((line) => line.startsWith('npm publish '))
+  const trustedStart = contents.indexOf('- name: Publish with npm trusted publishing')
+  const bootstrapStart = contents.indexOf('- name: Publish with the one-time bootstrap token')
+  const trustedSection =
+    trustedStart >= 0 && bootstrapStart > trustedStart
+      ? contents.slice(trustedStart, bootstrapStart)
+      : ''
+  const bootstrapSection = bootstrapStart >= 0 ? contents.slice(bootstrapStart) : ''
   const errors = []
 
-  if (publishLines.length !== packageSpecs.length * 2) {
+  if (publishLines.length !== 2) {
     errors.push(
-      `Publish workflow must contain exactly ${packageSpecs.length * 2} npm publish commands; received ${publishLines.length}.`,
+      `Publish workflow must invoke the shared publication guard exactly twice; received ${publishLines.length} invocations.`,
     )
   }
-
-  for (const line of publishLines) {
-    const registryOptions = line.match(/--registry(?:=|\s+)\S+/g) ?? []
-    if (
-      registryOptions.length !== 1 ||
-      registryOptions[0] !== '--registry https://registry.npmjs.org/'
-    ) {
-      errors.push(`Publish command is not pinned to the npmjs registry: ${JSON.stringify(line)}.`)
-    }
+  if (inlinePublishLines.length > 0) {
+    errors.push('Publish workflow must delegate every publication to the shared guard.')
+  }
+  if (!trustedSection.includes('node scripts/publish-release.mjs publish')) {
+    errors.push('Trusted publishing must invoke the shared publication guard.')
+  }
+  if (!bootstrapSection.includes('node scripts/publish-release.mjs publish')) {
+    errors.push('Bootstrap-token publishing must invoke the shared publication guard.')
+  }
+  if (!contents.includes('registry-url: https://registry.npmjs.org')) {
+    errors.push('Publish workflow must keep setup-node pinned to the npmjs registry.')
+  }
+  if (!contents.includes("inputs.auth_mode == 'trusted'")) {
+    errors.push('Publish workflow is missing the trusted-publishing path.')
+  }
+  if (!contents.includes("inputs.auth_mode == 'bootstrap-token'")) {
+    errors.push('Publish workflow is missing the bootstrap-token path.')
   }
 
-  const workflowVersion = '$' + '{RELEASE_VERSION}'
-  for (const spec of packageSpecs) {
-    const artifact = `release/${spec.artifactName(workflowVersion)}`
-    const count = publishLines.filter((line) => line.includes(`"${artifact}"`)).length
-    if (count !== 2) {
-      errors.push(
-        `${artifact} must be published once in each authentication mode; received ${count}.`,
-      )
-    }
+  if (!contents.includes('node scripts/check-release.mjs artifacts')) {
+    errors.push('Publish workflow must validate the exact release tarballs before publication.')
   }
 
   if (errors.length > 0) {

@@ -64,6 +64,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate immutable npm publication policy
         run: node scripts/check-release.mjs policy
+      - name: Check the resumable npm publication guard
+        run: node scripts/publish-release.mjs self-test
       - name: Validate committed release metadata
         env:
           RELEASE_VERSION: ${{ inputs.version }}
@@ -166,17 +168,16 @@ jobs:
       - name: Publish with npm trusted publishing
         if: ${{ inputs.auth_mode == 'trusted' }}
         env:
+          RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release
           RELEASE_NPM_TAG: ${{ inputs.npm_tag }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           unset NODE_AUTH_TOKEN
-          npm publish "release/adaptive-debounce-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
-          npm publish "release/adaptive-debounce-vue-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
-          npm publish "release/adaptive-debounce-react-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
-          npm publish "release/adaptive-debounce-nuxt-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
+          node scripts/publish-release.mjs publish
       - name: Publish with the one-time bootstrap token
         if: ${{ inputs.auth_mode == 'bootstrap-token' }}
         env:
+          RELEASE_ARTIFACT_DIR: ${{ github.workspace }}/release
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_BOOTSTRAP }}
           RELEASE_NPM_TAG: ${{ inputs.npm_tag }}
           RELEASE_VERSION: ${{ inputs.version }}
@@ -185,7 +186,4 @@ jobs:
             echo "The npm-publish environment does not contain NPM_TOKEN_BOOTSTRAP."
             exit 1
           fi
-          npm publish "release/adaptive-debounce-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
-          npm publish "release/adaptive-debounce-vue-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
-          npm publish "release/adaptive-debounce-react-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
-          npm publish "release/adaptive-debounce-nuxt-${RELEASE_VERSION}.tgz" --registry https://registry.npmjs.org/ --access public --provenance --tag "$RELEASE_NPM_TAG"
+          node scripts/publish-release.mjs publish

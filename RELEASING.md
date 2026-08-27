@@ -1,59 +1,82 @@
 # Releasing
 
-Releases are maintainer-run through manual GitHub Actions. Nothing publishes on push, pull request,
-merge, tag, or schedule. The repository's initial push therefore starts no Actions run. Pull
-requests to `main` run CI later, and maintainers can start CI manually when needed.
+This document defines the public release process for repository maintainers. Publishing requires
+access to the protected GitHub environment and permission to publish all four npm packages.
 
-Published versions follow [Semantic Versioning 2.0.0](https://semver.org/). The workflow does not
-create a Git tag or GitHub Release and does not invent a version.
+The repository separates verification from publication. Pull requests to `main` run CI, while
+**Package and publish npm** runs only when a maintainer starts it manually. Pushes, merges, tags,
+and schedules do not publish packages.
 
-## Prepare the repository and npm
+Published versions follow [Semantic Versioning 2.0.0](https://semver.org/). The release workflow
+uses the version committed to the package manifests. It does not create a Git tag or GitHub Release.
 
-Before the first release:
+## Release eligibility
 
-1. Complete the real-device and compatibility decisions still open in `todo.md`.
-2. Confirm ownership of the unscoped `adaptive-debounce` package and the `@adaptive-debounce` npm
-   organization. All four names must be available, and the scoped packages must allow public
-   publication. This is tracked as `HV-ADAPTIVE-DEBOUNCE-NPM-SCOPE-OWNERSHIP`.
-3. Create a protected GitHub environment named `npm-publish`. Limit it to `main`, require a reviewer,
-   and prevent administrators from bypassing that review.
-4. Keep repository Actions permissions read-only by default. The workflow grants `id-token: write`
-   only to the protected publish job for npm provenance and trusted publishing.
+An npm release is eligible when:
 
-The package versions remain `0.0.0` during development. That is a release-blocking sentinel. For an
-approved release, set the exact same nonzero SemVer in these committed files and record the public
-changes in `changelog.md`:
+- release-blocking work and compatibility decisions in `todo.md` are complete or explicitly
+  accepted;
+- the maintainers control the unscoped `adaptive-debounce` package and the `@adaptive-debounce`
+  npm organization, including public publication rights for all three scoped packages;
+- `changelog.md` describes the public changes; and
+- all four package manifests contain the same approved, nonzero SemVer.
+
+The package manifests use `0.0.0` as a release-blocking development sentinel. A release updates the
+version in these committed files:
 
 - `package.json`
 - `packages/vue/package.json`
 - `packages/react/package.json`
 - `packages/nuxt/package.json`
 
-Keep internal source ranges as `workspace:^`. pnpm rewrites them to the coordinated public version
-while packing, and the release validator rejects either an incorrect rewrite or a retained
-`workspace:` range. Do not make an uncommitted version bump in Actions.
+Internal source ranges remain `workspace:^`. pnpm rewrites them to the coordinated public version
+while packing, and the release validator rejects incorrect rewrites and retained `workspace:`
+ranges. Release versions must be committed before the workflow starts.
 
-## Create a release candidate
+The repository keeps Actions permissions read-only by default. Only the protected publish job
+receives `id-token: write` for npm provenance and trusted publishing. The `npm-publish` environment
+accepts deployments from `main` and requires maintainer approval. GitHub currently permits
+repository administrators to bypass that approval, so maintainers should treat approval as required
+for normal releases and document any administrative bypass in the release record.
 
-Open **Actions → Package and publish npm → Run workflow**. Choose the exact `main` commit and enter
-its committed version. Leave `mode` as `package-only`; this is the safe default and cannot publish.
-The workflow runs all core, browser, package, framework, size, and consumer checks, then retains the
-four exact tarballs that those consumers used. It validates their manifests, creates SHA-256
-checksums, and uploads one artifact for seven days.
+## Build a release candidate
 
-Inspect that artifact and the run before requesting publication. Do not casually run `npm publish`
-from local files: doing so bypasses the exact-artifact, checksum, protected-environment, provenance,
-and dependency-order safeguards.
+1. Open **Actions → Package and publish npm → Run workflow**.
+2. Select the exact `main` commit containing the approved package versions.
+3. Enter that shared version and keep `mode` set to `package-only`.
+4. Start the workflow and review the completed checks and uploaded artifact.
 
-## Bootstrap npm once
+Package-only mode cannot publish. It runs the core, browser, package, framework, size, and consumer
+checks, retains the four exact tarballs used by the consumer checks, validates their manifests,
+creates SHA-256 checksums, and uploads the release candidate for seven days.
 
-npm trusted publishers are configured per existing package. If npm requires the four packages to
-exist first, create a short-lived granular npm token with only the publication access required for
-these names and the required 2FA bypass. Store it only as the `NPM_TOKEN_BOOTSTRAP` secret on the
-protected `npm-publish` environment, select `bootstrap-token` for the first approved run, and revoke
-the token and remove the secret immediately afterwards. Do not create a repository-wide npm token.
+Local `npm publish` is not a supported release path because it bypasses the tested-artifact,
+checksum, protected-environment, provenance, and dependency-order safeguards.
 
-After all packages exist, configure an npm trusted publisher for each package with:
+## First npm publication
+
+Trusted publishing is configured per existing npm package. If the four package names cannot be
+linked to a trusted publisher before their first publication, the first approved release uses the
+workflow's `bootstrap-token` authentication mode.
+
+For the one-time bootstrap on this new, otherwise-empty npm account, a repository administrator:
+
+1. creates a one-day granular npm token with **Packages and scopes** set to **All Packages** and
+   **Read and write** access;
+2. enables the token's **Bypass two-factor authentication** option;
+3. sets **Organizations** to **No access**;
+4. reviews npm's generated token summary before creating the token;
+5. stores the token only as `NPM_TOKEN_BOOTSTRAP` in the protected `npm-publish` environment;
+6. runs the approved publication; and
+7. deletes the environment secret and revokes the token immediately after the run, whether the
+   publication succeeds or fails.
+
+The bootstrap token must never be pasted into an issue, chat, log, local file, or any other
+location. It is intentionally account-wide for this one-time bootstrap because the packages do not
+exist yet and therefore cannot be selected individually. The repository must not retain a
+general-purpose or repository-wide npm token after the bootstrap.
+
+Once the packages exist, each package uses this npm trusted-publisher configuration:
 
 - owner: `Kjaal`
 - repository: `adaptive-debounce`
@@ -61,30 +84,34 @@ After all packages exist, configure an npm trusted publisher for each package wi
 - environment: `npm-publish`
 - allowed action: `npm publish`
 
-Future runs use the default `trusted` mode and need no npm token. Keep npm two-factor authentication
-and package access policies enabled, and keep the repository public so npm can generate provenance.
-After the trusted run succeeds, set each package to require two-factor authentication and disallow
-tokens. See npm's
+All later releases use the default `trusted` authentication mode and require no npm token. npm
+two-factor authentication and package access policies remain enabled, and the repository remains
+public so npm can generate provenance. After trusted publishing succeeds, each package should
+require two-factor authentication and disallow token-based publication. See npm's
 [trusted publishing](https://docs.npmjs.com/trusted-publishers/) and
 [provenance](https://docs.npmjs.com/generating-provenance-statements/) guidance.
 
 ## Publish an approved version
 
-Run the same manual workflow from `main` with:
+Start **Package and publish npm** from the approved `main` commit with:
 
 - `mode`: `publish`
-- `npm_tag`: `next` for a prerelease, or the approved `latest` tag for a stable release
-- `auth_mode`: normally `trusted`; use `bootstrap-token` only for the one-time setup above
+- `npm_tag`: `next` for a prerelease or `latest` for an approved stable release
+- `auth_mode`: `trusted`, except for the one-time bootstrap described above
 - `confirmation`: exactly `publish VERSION to TAG`, for example `publish 1.0.0 to latest`
 
-The protected job downloads and revalidates the previously tested artifact and checksums. It uses
-Node.js `24.20.0` with npm `11.19.0`, publishes with public access and provenance, and stops on the
-first failure. Publication order is fixed: core, Vue, React, then Nuxt. A prerelease cannot use the
-`latest` tag.
+The protected job downloads and revalidates the tested artifact and checksums. It uses Node.js
+`24.20.0` with npm `11.19.0`, publishes with public access and provenance, and processes packages in
+fixed order: core, Vue, React, then Nuxt. Prereleases cannot use the `latest` tag.
+
+Publication is resumable after an interrupted run through the shared publication guard. For each
+package, an existing version is skipped only when the registry package name, version, and SHA-512
+integrity exactly match the validated tarball. A missing registry result, integrity mismatch, name or
+version mismatch, or other registry error stops the run; an existing version is never overwritten.
 
 ## Framework compatibility
 
-The current packed-consumer matrix covers:
+The packed-consumer matrix currently covers:
 
 | Package | Peer range | Verified versions |
 | --- | --- | --- |
@@ -92,5 +119,5 @@ The current packed-consumer matrix covers:
 | `@adaptive-debounce/nuxt` | Nuxt `>=4.4.0 <4.5.0`, Vue `>=3.5.0 <4.0.0` | Nuxt `4.4.2`, Vue `3.5.41` |
 | `@adaptive-debounce/react` | React `^18.2.0 || ^19.0.0` | React `18.2.0`, React `19.2.8` |
 
-Do not widen a peer range from version arithmetic alone. Add that version to the packed-consumer
-matrix and verify its SSR and strict-type path first.
+A peer range may be widened only after the new version is added to the packed-consumer matrix and
+its SSR and strict-type paths pass.
