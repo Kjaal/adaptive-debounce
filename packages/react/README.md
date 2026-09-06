@@ -47,6 +47,10 @@ Calls to different hooks never cancel each other. A hook cancels its own pending
 `AbortError` when its component unmounts. Await or catch returned promises. If navigation must wait
 for a pending save, explicitly call and await `save.flush()` before navigating.
 
+Pending calls use the latest committed callback. Suspended or abandoned renders do not replace
+it, and committing a new callback keeps the existing timer deadline and function identity.
+Automatic persistence and observer failures likewise use the latest committed `onError` handler.
+
 Use `useAdaptiveDelay()` when you need to display the current recommendation:
 
 ```tsx
