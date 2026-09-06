@@ -2,18 +2,21 @@
 
 import { createElement, type ReactElement } from 'react'
 import { renderToString } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   AdaptiveDebounceProvider,
   type AdaptiveDebounceProviderProps,
   type AdaptiveDebounceRuntime,
+  useAdaptiveDebouncedCallback,
   useAdaptiveDebounceRuntime,
   useAdaptiveDelay,
 } from '../src/index'
 
 describe('React server rendering', () => {
   it('renders a deterministic cold snapshot without browser globals', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     function Delay(): ReactElement {
+      useAdaptiveDebouncedCallback(() => 'saved')
       return createElement('span', null, useAdaptiveDelay())
     }
 
@@ -22,6 +25,7 @@ describe('React server rendering', () => {
     )
 
     expect(html).toBe('<span>750</span>')
+    expect(error).not.toHaveBeenCalled()
   })
 
   it('accepts React reserved key metadata', () => {

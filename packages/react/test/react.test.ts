@@ -1,6 +1,14 @@
 import type { AdaptiveDebounced, AdaptiveDelayStateV1 } from 'adaptive-debounce'
 import type { AdaptiveDelayPersistenceAdapter } from 'adaptive-debounce/persistence'
-import { createElement, type ReactElement, type ReactNode, StrictMode } from 'react'
+import {
+  createElement,
+  type ReactElement,
+  type ReactNode,
+  startTransition,
+  StrictMode,
+  Suspense,
+  useLayoutEffect,
+} from 'react'
 import { createRoot, hydrateRoot } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { act } from 'react-dom/test-utils'
@@ -41,6 +49,83 @@ afterEach(() => {
 })
 
 describe('AdaptiveDebounceProvider', () => {
+  it('uses a newly committed error handler without restarting persistence', async () => {
+    const load = deferred<void>()
+    const failure = new Error('load failed')
+    const adapter = createAdapter()
+    adapter.load.mockImplementation(() =>
+      load.promise.then(() => {
+        throw failure
+      }),
+    )
+    const first = vi.fn()
+    const second = vi.fn()
+    const mounted = createMountedRoot()
+    const node = (onError: (error: unknown) => void): ReactElement =>
+      createElement(AdaptiveDebounceProvider, {
+        observation: false,
+        persistence: { adapter },
+        onError,
+      })
+    try {
+      await mounted.render(node(first))
+      await mounted.render(node(second))
+      expect(adapter.load).toHaveBeenCalledOnce()
+      await resolveDeferred(load, undefined)
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledWith(failure)
+    } finally {
+      await mounted.unmount()
+    }
+  })
+
+  it('reports background failures to the committed handler while a transition suspends', async () => {
+    const load = deferred<void>()
+    const suspended = deferred<void>()
+    const failure = new Error('load failed')
+    const adapter = createAdapter()
+    adapter.load.mockImplementation(() =>
+      load.promise.then(() => {
+        throw failure
+      }),
+    )
+    const committed = vi.fn()
+    const pending = vi.fn()
+    const renders = vi.fn()
+    function Capture({ suspend }: { readonly suspend: boolean }): ReactElement {
+      renders(suspend)
+      if (suspend) throw suspended.promise
+      return createElement('span', null, 'committed')
+    }
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    const node = (onError: (error: unknown) => void, suspend: boolean): ReactElement =>
+      createElement(
+        Suspense,
+        { fallback: 'loading' },
+        createElement(
+          AdaptiveDebounceProvider,
+          { observation: false, persistence: { adapter }, onError },
+          createElement(Capture, { suspend }),
+        ),
+      )
+    try {
+      await act(async () => root.render(node(committed, false)))
+      await act(async () => {
+        startTransition(() => root.render(node(pending, true)))
+      })
+      expect(renders).toHaveBeenCalledWith(true)
+      expect(container.textContent).toBe('committed')
+      await resolveDeferred(load, undefined)
+      expect(committed).toHaveBeenCalledWith(failure)
+      expect(pending).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
+  })
+
   it('hydrates the deterministic cold state without mismatch warnings', async () => {
     function Delay(): ReactElement {
       return createElement('span', null, useAdaptiveDelay())
@@ -256,6 +341,81 @@ describe('AdaptiveDebounceProvider', () => {
 })
 
 describe('useAdaptiveDebouncedCallback', () => {
+  it('updates the callback before the consuming layout effect', async () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    function Capture({ callback }: { readonly callback: () => void }): null {
+      const debounced = useAdaptiveDebouncedCallback(callback)
+      useLayoutEffect(() => {
+        void debounced()
+        void debounced.flush()
+      })
+      return null
+    }
+    const mounted = createMountedRoot()
+    try {
+      await mounted.render(provider(createElement(Capture, { callback: first })))
+      await mounted.render(provider(createElement(Capture, { callback: second })))
+      expect(first).toHaveBeenCalledOnce()
+      expect(second).toHaveBeenCalledOnce()
+    } finally {
+      await mounted.unmount()
+    }
+  })
+
+  it('keeps pending work on the committed callback while a transition suspends', async () => {
+    vi.useFakeTimers()
+    const committed = vi.fn(() => 'committed')
+    const pending = vi.fn(() => 'pending')
+    const suspended = deferred<void>()
+    const renders = vi.fn()
+    let debounced: AdaptiveDebounced<unknown, [], string> | undefined
+
+    function Capture({
+      callback,
+      suspend,
+    }: {
+      readonly callback: () => string
+      readonly suspend: boolean
+    }): ReactElement {
+      debounced = useAdaptiveDebouncedCallback(callback)
+      renders(callback)
+      if (suspend) throw suspended.promise
+      return createElement('span', null, 'committed')
+    }
+
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    const node = (callback: () => string, suspend: boolean): ReactElement =>
+      provider(
+        createElement(
+          Suspense,
+          { fallback: 'loading' },
+          createElement(Capture, { callback, suspend }),
+        ),
+      )
+    try {
+      await act(async () => root.render(node(committed, false)))
+      const original = requireDebounced(debounced)
+      const result = original()
+      await act(async () => {
+        startTransition(() => root.render(node(pending, true)))
+      })
+      expect(renders).toHaveBeenCalledWith(pending)
+      expect(container.textContent).toBe('committed')
+      expect(debounced).toBe(original)
+      await act(async () => {
+        vi.advanceTimersByTime(100)
+      })
+      await expect(result).resolves.toBe('committed')
+      expect(pending).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+    }
+  })
+
   it('keeps its identity and deadline while switching to the latest callback', async () => {
     vi.useFakeTimers()
     const firstCallback = vi.fn(() => 'first')

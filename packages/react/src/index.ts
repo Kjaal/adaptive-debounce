@@ -19,6 +19,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -96,6 +97,7 @@ interface InternalRuntime extends AdaptiveDebounceRuntime {
 }
 
 const AdaptiveDebounceContext = createContext<InternalRuntime | null>(null)
+const useCommitEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 /**
  * Provides one isolated adaptive learner to a React application subtree.
@@ -117,7 +119,9 @@ export function AdaptiveDebounceProvider(props: AdaptiveDebounceProviderProps): 
   const runtime = runtimeReference.current
 
   const errorHandlerReference = useRef(onError)
-  errorHandlerReference.current = onError
+  useCommitEffect(() => {
+    errorHandlerReference.current = onError
+  }, [onError])
 
   const observationOptions =
     typeof observation === 'object' && observation !== null ? observation : undefined
@@ -206,7 +210,8 @@ export function useAdaptiveDelay(): number {
  * Creates an independent debounced callback backed by the Provider's shared delay.
  *
  * The returned callback and controls stay stable when only the callback closure changes. Pending
- * work is cancelled when timing options change or the component unmounts.
+ * work uses the latest committed callback and is cancelled when timing options change or the
+ * component unmounts. Suspended renders do not replace the active callback.
  */
 export function useAdaptiveDebouncedCallback<This, Arguments extends unknown[], Result>(
   callback: (this: This, ...arguments_: Arguments) => Result,
@@ -214,7 +219,9 @@ export function useAdaptiveDebouncedCallback<This, Arguments extends unknown[], 
 ): AdaptiveDebounced<This, Arguments, Result> {
   const runtime = useInternalRuntime()
   const callbackReference = useRef(callback)
-  callbackReference.current = callback
+  useCommitEffect(() => {
+    callbackReference.current = callback
+  }, [callback])
 
   const leading = options?.leading ?? false
   const trailing = options?.trailing ?? true
