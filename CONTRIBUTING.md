@@ -61,7 +61,7 @@ production build and type check. The size check keeps framework peers external a
 minified, gzip, and Brotli output while including imported core, browser, and persistence code.
 There is no adapter size limit yet; explain material growth instead of hiding it.
 
-Current verified framework targets are Vue `3.5.41`, Nuxt `4.4.2`, React `18.2.0`, and React
+Current verified framework targets are Vue `3.5.41`, Nuxt `4.5.1`, React `18.2.0`, and React
 `19.2.8`. Published peer ranges live in each package manifest. Do not widen those ranges or claim a
 Node/browser support matrix without a matching packed-consumer or real-environment check.
 
