@@ -215,9 +215,9 @@ function createRuntime(options: AdaptiveDebounceVueOptions): InternalRuntime {
         save: () => persistenceControls.save(),
         flush: () => persistenceControls.flush(),
         async clear() {
-          invalidatePendingStart()
-          await persistenceControls.clear()
+          // Discard the staged profile without cancelling requested observation.
           loaded = true
+          await persistenceControls.clear()
         },
         dispose: () => persistenceControls.dispose(),
       }
@@ -262,10 +262,12 @@ function createRuntime(options: AdaptiveDebounceVueOptions): InternalRuntime {
         if (disposed || generation !== startGeneration) {
           return NOOP_STOP
         }
-        if (result === 'imported') {
-          delay.importState(stagedDelay.exportState())
+        if (!loaded) {
+          if (result === 'imported') {
+            delay.importState(stagedDelay.exportState())
+          }
+          loaded = result !== undefined
         }
-        loaded = result !== undefined
       }
 
       if (disposed || generation !== startGeneration) {

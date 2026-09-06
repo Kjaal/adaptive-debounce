@@ -30,6 +30,9 @@ app.use(createAdaptiveDebouncePlugin({ persistence: true }))
 The built-in provider loads when the runtime starts and saves one second after learned timing
 changes. It stores timing metadata only, never input values.
 
+Calling `runtime.persistence.clear()` resets learning without stopping observation. If startup is
+still loading a profile, that profile is discarded and observation starts when the load settles.
+
 ## Use anywhere
 
 ```ts
