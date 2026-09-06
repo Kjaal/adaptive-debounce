@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `RELEASE-006` Prepared all four packages at stable `0.1.0` with coordinated workspace packing and the existing protected publication process; publication and registry verification remain pending (#19).
 - `FRAMEWORK-001` Keep pending React callbacks and automatic error handling on the latest committed render, preserving callback identity and deadlines; cover suspended transitions, layout-effect ordering, committed updates, and warning-free SSR (#17).
 - `FRAMEWORK-001` Added production hydration, navigation, unmount cleanup, component HMR, and plugin reload checks for Nuxt to pull-request CI and release validation (#15).
 - `RELEASE-005` Prepared a native main-branch ruleset requiring pull requests and the existing GitHub Actions check, with no permanent bypass; documented one-time activation and native Dependabot security settings. Live enforcement and security-setting activation remain pending after review and merge.

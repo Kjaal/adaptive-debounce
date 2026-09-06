@@ -10,7 +10,10 @@ entry points.
 npm install adaptive-debounce@next
 ```
 
-The published `0.1.0-rc.1` release candidate uses the `next` channel; no stable release is available.
+The published `0.1.0-rc.1` release candidate uses the `next` channel. Stable `0.1.0` is prepared
+but has not been published. After publication, install `adaptive-debounce@0.1.0`; the same version
+will be available for the Vue, React, and Nuxt companion packages. Stable publication uses `latest`
+and preserves the release candidate on `next`.
 
 ## Quick start
 
