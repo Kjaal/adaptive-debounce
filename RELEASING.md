@@ -14,8 +14,7 @@ uses the version committed to the package manifests. It does not create a Git ta
 
 An npm release is eligible when:
 
-- release-blocking work and compatibility decisions in `todo.md` are complete or explicitly
-  accepted;
+- release-blocking work and compatibility decisions are complete or explicitly accepted;
 - the maintainers control the unscoped `adaptive-debounce` package and the `@adaptive-debounce`
   npm organization, including public publication rights for all three scoped packages;
 - `changelog.md` describes the public changes; and
