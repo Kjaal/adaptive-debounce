@@ -5,7 +5,7 @@ React Provider and hooks for [`adaptive-debounce`](https://www.npmjs.com/package
 ## Install
 
 ```sh
-npm install adaptive-debounce @adaptive-debounce/react
+npm install adaptive-debounce@next @adaptive-debounce/react@next
 ```
 
 ## Set up once

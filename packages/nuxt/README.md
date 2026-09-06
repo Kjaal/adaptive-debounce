@@ -6,7 +6,7 @@ per Nuxt app, starts typing observation after client mount, and auto-imports the
 ## Install
 
 ```sh
-npm install adaptive-debounce @adaptive-debounce/vue @adaptive-debounce/nuxt
+npm install adaptive-debounce@next @adaptive-debounce/vue@next @adaptive-debounce/nuxt@next
 ```
 
 ## Configure
