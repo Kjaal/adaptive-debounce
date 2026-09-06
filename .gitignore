@@ -1,4 +1,6 @@
 node_modules/
+[Tt][Oo][Dd][Oo].[Mm][Dd]
+[Tt][Oo]-[Dd][Oo].[Mm][Dd]
 .npmrc
 dist/
 coverage/
