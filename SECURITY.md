@@ -2,9 +2,10 @@
 
 ## Supported versions
 
-`adaptive-debounce` has not published its first release, so there is no supported release line yet.
-This section will identify supported versions when releases begin. Development snapshots should
-not be treated as security-supported packages.
+The core, Vue, React, and Nuxt packages published `0.1.0-rc.1` on August 27, 2026.
+This is a prerelease available through `next`; no stable security-supported release line has been
+declared. Report vulnerabilities in the release candidate through the private channel below.
+Development snapshots should not be treated as security-supported packages.
 
 ## Reporting a vulnerability
 

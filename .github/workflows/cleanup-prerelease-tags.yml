@@ -49,6 +49,9 @@ jobs:
           test "$(node --version)" = "v24.20.0"
           test "$(npm --version)" = "11.19.0"
 
+      - name: Check cleanup against a local registry fixture
+        run: node scripts/check-prerelease-cleanup.mjs
+
       - name: Remove only the matching latest tags
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_BOOTSTRAP }}
@@ -75,12 +78,13 @@ jobs:
             local versions
             local tags
 
-            if ! versions="$(npm view "$package" versions --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
+            # An unversioned npm view resolves latest, which cleanup intentionally removes.
+            if ! versions="$(npm view "$package@$version" versions --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
               echo "Unable to read published versions for $package."
               return 1
             fi
 
-            if ! tags="$(npm view "$package" dist-tags --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
+            if ! tags="$(npm view "$package@$version" dist-tags --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
               echo "Unable to read distribution tags for $package."
               return 1
             fi
@@ -129,7 +133,7 @@ jobs:
           done
 
           for package in "${packages[@]}"; do
-            if ! tags="$(npm view "$package" dist-tags --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
+            if ! tags="$(npm view "$package@$version" dist-tags --json --registry="$registry" --loglevel=error 2>/dev/null)"; then
               echo "Unable to recheck distribution tags for $package."
               exit 1
             fi
