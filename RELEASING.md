@@ -21,8 +21,8 @@ An npm release is eligible when:
 - `changelog.md` describes the public changes; and
 - all four package manifests contain the same approved, nonzero SemVer.
 
-The package manifests use `0.0.0` as a release-blocking development sentinel. A release updates the
-version in these committed files:
+The package manifests are currently `0.1.0-rc.1`; `0.0.0` is a release-blocking development sentinel.
+A release updates the version in these committed files:
 
 - `package.json`
 - `packages/vue/package.json`
@@ -108,6 +108,27 @@ Publication is resumable after an interrupted run through the shared publication
 package, an existing version is skipped only when the registry package name, version, and SHA-512
 integrity exactly match the validated tarball. A missing registry result, integrity mismatch, name or
 version mismatch, or other registry error stops the run; an existing version is never overwritten.
+
+## Prerelease tag cleanup
+
+All four `0.1.0-rc.1` packages were published on August 27, 2026. Install with `@next` until a
+stable release is approved. The unintended `latest` tags remain: cleanup run
+[33120675727](https://github.com/Kjaal/adaptive-debounce/actions/runs/33120675727) passed preflight
+but received npm `E403` on the first `adaptive-debounce` tag deletion, before removing any tags.
+The response does not establish which credential or npm policy caused the refusal.
+
+`Remove prerelease latest tags` is retained until cleanup succeeds. Its metadata queries select
+`0.1.0-rc.1` explicitly so verification and reruns also work after `latest` is absent. Run
+`node scripts/check-prerelease-cleanup.mjs` to exercise the workflow against a local registry
+fixture (on Windows, use Git Bash or pass its executable path as the first argument).
+
+Before retrying, the maintainer must resolve npm's refusal for the account and credential used by
+the protected `npm-publish` environment. Secret presence or update timestamps alone do not prove
+tag-management access. Do not paste credentials into GitHub issues, logs, or chat.
+After that condition is resolved, dispatch the workflow on `main` with exactly
+`remove latest 0.1.0-rc.1` and approve the protected environment normally. It only removes matching
+`latest` tags, preserves `next` and published versions, and skips already-absent tags. Retire the
+temporary workflow and its fixture check only after a successful run and registry verification.
 
 ## Framework compatibility
 
