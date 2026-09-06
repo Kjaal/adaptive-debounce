@@ -410,6 +410,59 @@ describe('createAdaptiveDelay', () => {
     expect(calls).toHaveLength(3)
   })
 
+  it.each(['reset', 'import'] as const)(
+    'stops obsolete notifications after a listener performs a reentrant %s',
+    (operation) => {
+      const time = createClock()
+      const delay = createAdaptiveDelay({ clock: time.clock })
+      const notifications: number[][] = []
+      const expectedDelayMs = operation === 'reset' ? 750 : 1_150
+      const removeFirst = delay.subscribe((value) => {
+        if (value === 775) {
+          if (operation === 'reset') {
+            delay.reset()
+          } else {
+            delay.importState({ version: 1, smoothedIntervalMs: 160 })
+          }
+        }
+      })
+      const removeSecond = delay.subscribe((value) => {
+        notifications.push([value, delay.getDelay()])
+      })
+
+      delay.record()
+      time.set(100)
+      delay.record()
+
+      expect(notifications).toEqual([[expectedDelayMs, expectedDelayMs]])
+      expect(delay.getDelay()).toBe(expectedDelayMs)
+      removeFirst()
+      removeSecond()
+      removeSecond()
+      delay.importState({ version: 1, smoothedIntervalMs: 100 })
+      expect(notifications).toHaveLength(1)
+    },
+  )
+
+  it('preserves the first listener error when a later listener resets state', () => {
+    const delay = createAdaptiveDelay()
+    const firstError = new Error('first')
+    const listener = vi.fn()
+    delay.subscribe(() => {
+      throw firstError
+    })
+    delay.subscribe((value) => {
+      if (value === 850) {
+        delay.reset()
+      }
+    })
+    delay.subscribe(listener)
+
+    expect(() => delay.importState({ version: 1, smoothedIntervalMs: 100 })).toThrow(firstError)
+    expect(listener).toHaveBeenCalledExactlyOnceWith(750)
+    expect(delay.getDelay()).toBe(750)
+  })
+
   it('does not notify when an accepted operation leaves exported state unchanged', () => {
     const time = createClock()
     const delay = createAdaptiveDelay({ clock: time.clock })
