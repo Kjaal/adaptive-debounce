@@ -9,15 +9,15 @@ Build a small, framework-agnostic TypeScript package that learns from local typi
 - Work in small, reviewable increments and keep explanations concise.
 - Ask the user before making decisions that materially affect the public API, package tooling, runtime support, adaptive algorithm, privacy model, persistence, dependencies, or release process.
 - Prefer the simplest design that satisfies a demonstrated requirement. Do not add speculative framework adapters or abstractions.
-- Treat `todo.md` as the canonical plan and keep it current when requirements or decisions change.
+- Treat local `todo.md` as the canonical internal plan and keep it current when requirements or decisions change. Planning notes are ignored by Git; never stage or publish them.
 - Do not publish packages, create remote repositories, commit, or push unless the user explicitly asks.
 
 ## Turn Protocol
 
-1. Before work, read `todo.md` and select one scheduled task ID. A task is planned only when it is present at the start of the turn or explicitly requested in the current turn.
+1. Before work, read local `todo.md` and select one scheduled task ID. On a fresh checkout without it, create the local plan from the current explicit request; do not infer older tasks. A task is planned only when it is present at the start of the turn or explicitly requested in the current turn.
 2. Keep the turn limited to that one small task. Add a new scheduled task ID only when the current user request explicitly schedules it.
 3. After work, reconcile the selected item in `todo.md`, checking it off only when its acceptance criteria are met.
-4. Record the same task ID under `changelog.md` > `Unreleased` with a concise description of the completed change.
+4. Record public changes under `changelog.md` > `Unreleased` with the same task ID and a concise description. Keep internal coordination and planning details only in local `todo.md`.
 5. Do not execute newly discovered or otherwise unscheduled work. It may be recorded in `todo.md`, but must be surfaced through the ARSE guard as `HUMAN_VALIDATION` / `PENDING_HUMAN` with a stable `HV-ADAPTIVE-DEBOUNCE-...` finding ID.
 
 ## Product Boundaries

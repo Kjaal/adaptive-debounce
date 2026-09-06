@@ -23,13 +23,31 @@ interface HostElement extends HostNode {
 class FakeObservationRoot {
   added = 0
   removed = 0
+  readonly listeners = new Map<string, EventListener>()
 
-  addEventListener(): void {
+  addEventListener(type: string, listener: EventListener): void {
     this.added += 1
+    this.listeners.set(type, listener)
   }
 
-  removeEventListener(): void {
+  removeEventListener(type: string): void {
     this.removed += 1
+    this.listeners.delete(type)
+  }
+
+  type(): void {
+    const control = {
+      localName: 'input',
+      getAttribute: () => null,
+      closest: (selector: string) =>
+        selector === '[data-adaptive-debounce-ignore]' ? null : control,
+    }
+    this.listeners.get('beforeinput')?.({
+      isTrusted: true,
+      target: control,
+      inputType: 'insertText',
+      isComposing: false,
+    } as unknown as InputEvent)
   }
 }
 
@@ -217,18 +235,23 @@ describe('@adaptive-debounce/vue', () => {
     expect(root.added).toBe(4)
   })
 
-  it('prevents a late initial load from restoring state after clear', async () => {
+  it.each([true, false])('starts observation when clear finishes first: %s', async (clearFirst) => {
+    defineGlobal('document', {})
+    const root = new FakeObservationRoot()
+    let now = 0
     const pendingLoad = deferred<unknown>()
+    const pendingClear = deferred<void>()
     const adapter: AdaptiveDelayPersistenceAdapter = {
       load: vi.fn(() => pendingLoad.promise),
       save: vi.fn(),
-      clear: vi.fn(),
+      clear: vi.fn(() => pendingClear.promise),
     }
     const app = createSSRApp({ render: () => null })
     app.use(
       createAdaptiveDebouncePlugin({
         autoStart: false,
-        observe: false,
+        observe: { root: root as unknown as Document },
+        delay: { clock: () => now },
         persistence: { adapter, autosave: false },
       }),
     )
@@ -238,13 +261,62 @@ describe('@adaptive-debounce/vue', () => {
       throw new Error('Expected persistence controls.')
     }
 
-    await runtime.persistence.clear()
+    const clearing = runtime.persistence.clear()
+    if (clearFirst) {
+      pendingClear.resolve()
+      await clearing
+    }
     pendingLoad.resolve({ version: 1, smoothedIntervalMs: 200 })
-    await started
+    const stop = await started
+    pendingClear.resolve()
+    await clearing
 
     expect(runtime.delay.getDelay()).toBe(750)
     expect(adapter.clear).toHaveBeenCalledOnce()
+    expect(adapter.load).toHaveBeenCalledOnce()
+    expect(root.added).toBe(4)
+    root.type()
+    now = 100
+    root.type()
+    expect(runtime.delay.getDelay()).toBeGreaterThan(750)
+    stop()
+    expect(root.removed).toBe(4)
+    const stoppedDelay = runtime.delay.getDelay()
+    now = 200
+    root.type()
+    expect(runtime.delay.getDelay()).toBe(stoppedDelay)
+    runtime.dispose()
   })
+
+  it.each(['stop', 'dispose'] as const)(
+    'keeps observation stopped when %s follows clear during startup',
+    async (action) => {
+      defineGlobal('document', {})
+      const root = new FakeObservationRoot()
+      const pendingLoad = deferred<unknown>()
+      const app = createSSRApp({ render: () => null })
+      app.use(
+        createAdaptiveDebouncePlugin({
+          autoStart: false,
+          observe: { root: root as unknown as Document },
+          persistence: {
+            adapter: { load: () => pendingLoad.promise, save: vi.fn(), clear: vi.fn() },
+            autosave: false,
+          },
+        }),
+      )
+      const runtime = getRuntime(app)
+      const started = runtime.start()
+      await runtime.persistence?.clear()
+      runtime[action]()
+      pendingLoad.resolve({ version: 1, smoothedIntervalMs: 200 })
+      await started
+
+      expect(root.added).toBe(0)
+      expect(runtime.delay.getDelay()).toBe(750)
+      runtime.dispose()
+    },
+  )
 
   it('rejects inherited plugin configuration', () => {
     const inherited = Object.create({ persistence: true }) as {

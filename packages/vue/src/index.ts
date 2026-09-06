@@ -44,7 +44,7 @@ export interface AdaptiveDebounceVueOptions {
   readonly observe?: false | ObserveTypingOptions
   /** Opt-in persistence using localStorage or a custom adapter. @defaultValue false */
   readonly persistence?: boolean | AdaptiveDebounceVuePersistenceOptions
-  /** Starts during browser installation. Nuxt sets this to `false`. @defaultValue true */
+  /** Starts after the root mounts. Nuxt sets this to `false`. @defaultValue true */
   readonly autoStart?: boolean
   /** Receives automatic start and autosave failures. */
   readonly onError?: (error: unknown) => void
@@ -118,7 +118,14 @@ export function createAdaptiveDebouncePlugin(options: AdaptiveDebounceVueOptions
       app.onUnmount(runtime.dispose)
 
       if (options.autoStart !== false && typeof document !== 'undefined') {
-        void runtime.start().catch(runtime.report)
+        const mount = app.mount
+        app.mount = function (...arguments_) {
+          const instance = mount.apply(this, arguments_)
+          if (instance !== undefined) {
+            void runtime.start().catch(runtime.report)
+          }
+          return instance
+        }
       }
     },
   }
@@ -215,9 +222,9 @@ function createRuntime(options: AdaptiveDebounceVueOptions): InternalRuntime {
         save: () => persistenceControls.save(),
         flush: () => persistenceControls.flush(),
         async clear() {
-          invalidatePendingStart()
-          await persistenceControls.clear()
+          // Discard the staged profile without cancelling requested observation.
           loaded = true
+          await persistenceControls.clear()
         },
         dispose: () => persistenceControls.dispose(),
       }
@@ -262,10 +269,12 @@ function createRuntime(options: AdaptiveDebounceVueOptions): InternalRuntime {
         if (disposed || generation !== startGeneration) {
           return NOOP_STOP
         }
-        if (result === 'imported') {
-          delay.importState(stagedDelay.exportState())
+        if (!loaded) {
+          if (result === 'imported') {
+            delay.importState(stagedDelay.exportState())
+          }
+          loaded = result !== undefined
         }
-        loaded = result !== undefined
       }
 
       if (disposed || generation !== startGeneration) {

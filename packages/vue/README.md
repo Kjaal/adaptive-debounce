@@ -30,6 +30,9 @@ app.use(createAdaptiveDebouncePlugin({ persistence: true }))
 The built-in provider loads when the runtime starts and saves one second after learned timing
 changes. It stores timing metadata only, never input values.
 
+Calling `runtime.persistence.clear()` resets learning without stopping observation. If startup is
+still loading a profile, that profile is discarded and observation starts when the load settles.
+
 ## Use anywhere
 
 ```ts
@@ -53,8 +56,11 @@ that application instance. Neither mode reads or stores input text.
 
 ## SSR
 
-Importing and installing the plugin is SSR-safe. Browser observation and localStorage start only in
-a browser lifecycle. Each Vue application receives a separate runtime, so server requests do not
+Importing and installing the plugin is SSR-safe. Automatic startup waits until `app.mount()` returns,
+including functional roots, keeping the initial root hydration state deterministic even when startup awaits router readiness.
+Browser observation and opted-in localStorage loading then start once for that app. Set
+`autoStart: false` to own startup explicitly through `runtime.start()` after hydration.
+Each Vue application receives a separate runtime, so server requests do not
 share learned state. No module-global runtime is created.
 
 For Nuxt, use `@adaptive-debounce/nuxt` instead of wiring client lifecycle hooks yourself.

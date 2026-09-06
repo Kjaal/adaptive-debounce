@@ -390,6 +390,47 @@ describe('createAdaptiveDelayPersistence', () => {
     persistence.dispose()
   })
 
+  it('reports each coalesced autosave failure once while a custom adapter stalls', async () => {
+    vi.useFakeTimers()
+    const activeWrite = deferred()
+    const queuedWrite = deferred()
+    const activeError = new Error('active write failed')
+    const queuedError = new Error('queued write failed')
+    const onError = vi.fn(() => {
+      throw new Error('error callback failed')
+    })
+    const save = vi
+      .fn()
+      .mockReturnValueOnce(activeWrite.promise)
+      .mockReturnValueOnce(queuedWrite.promise)
+    const delay = createAdaptiveDelay()
+    const persistence = createAdaptiveDelayPersistence(
+      delay,
+      { load: () => undefined, save, clear: () => undefined },
+      { autosave: { onError } },
+    )
+
+    for (let index = 0; index < 500; index += 1) {
+      delay.importState({ version: 1, smoothedIntervalMs: 100 + index })
+      await vi.advanceTimersByTimeAsync(1_000)
+    }
+    expect(save).toHaveBeenCalledOnce()
+    const manualSave = expect(persistence.save()).rejects.toBe(queuedError)
+    const flushed = expect(persistence.flush()).rejects.toBe(activeError)
+    persistence.dispose()
+    expect(vi.getTimerCount()).toBe(0)
+
+    activeWrite.reject(activeError)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith({ version: 1, smoothedIntervalMs: 599 })
+    queuedWrite.reject(queuedError)
+    await Promise.all([manualSave, flushed])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onError.mock.calls).toEqual([[activeError], [queuedError]])
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('clears after an older active write and drops queued stale writes', async () => {
     const activeWrite = deferred()
     let stored: unknown
