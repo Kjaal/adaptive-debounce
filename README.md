@@ -7,13 +7,11 @@ entry points.
 ## Install
 
 ```sh
-npm install adaptive-debounce@next
+npm install adaptive-debounce@0.1.0
 ```
 
-The published `0.1.0-rc.1` release candidate uses the `next` channel. Stable `0.1.0` is prepared
-but has not been published. After publication, install `adaptive-debounce@0.1.0`; the same version
-will be available for the Vue, React, and Nuxt companion packages. Stable publication uses `latest`
-and preserves the release candidate on `next`.
+These installation examples target `0.1.0` across the core and companion packages. Stable releases
+use `latest`; the `0.1.0-rc.1` release candidate remains on `next`.
 
 ## Quick start
 
@@ -82,7 +80,7 @@ another form's save. There is no module-global runtime or cross-request state.
 ### Vue
 
 ```sh
-npm install adaptive-debounce@next @adaptive-debounce/vue@next
+npm install adaptive-debounce@0.1.0 @adaptive-debounce/vue@0.1.0
 ```
 
 ```ts
@@ -97,7 +95,7 @@ README covers its complete lifecycle and persistence controls.
 ### Nuxt
 
 ```sh
-npm install adaptive-debounce@next @adaptive-debounce/vue@next @adaptive-debounce/nuxt@next
+npm install adaptive-debounce@0.1.0 @adaptive-debounce/vue@0.1.0 @adaptive-debounce/nuxt@0.1.0
 ```
 
 ```ts
@@ -114,7 +112,7 @@ advanced setup.
 ### React
 
 ```sh
-npm install adaptive-debounce@next @adaptive-debounce/react@next
+npm install adaptive-debounce@0.1.0 @adaptive-debounce/react@0.1.0
 ```
 
 ```tsx

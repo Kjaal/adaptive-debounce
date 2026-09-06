@@ -6,7 +6,7 @@ profile, while each debounced callback keeps its own timer, arguments, promise, 
 ## Install
 
 ```sh
-npm install adaptive-debounce@next @adaptive-debounce/vue@next
+npm install adaptive-debounce@0.1.0 @adaptive-debounce/vue@0.1.0
 ```
 
 ## Set up once
