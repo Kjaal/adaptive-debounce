@@ -10,6 +10,58 @@ and schedules do not publish packages.
 Published versions follow [Semantic Versioning 2.0.0](https://semver.org/). The release workflow
 uses the version committed to the package manifests. It does not create a Git tag or GitHub Release.
 
+## Activate repository safeguards after merge
+
+The policy in [`.github/rulesets/main.json`](./.github/rulesets/main.json) is a reviewed settings
+payload, not an automatically applied configuration. As verified on September 6, 2026, `main`
+has no protection or rulesets, and Dependabot alerts and security updates are disabled. Merging
+this file does not change those settings. `RELEASE-005` stays open until activation is verified.
+
+After review and merge, an administrator should use an existing authorized GitHub session:
+
+1. Inspect **Settings → Rules → Rulesets** for an existing `Require CI on main` policy. If present,
+   compare and update it instead of creating a duplicate. Otherwise create it once from the
+   merged repository root:
+
+   ```sh
+   gh api --method POST repos/Kjaal/adaptive-debounce/rulesets --input .github/rulesets/main.json
+   ```
+
+2. Verify the resulting ruleset is **Active**, targets only `refs/heads/main`, has no bypass
+   actors, requires a pull request with zero required approvals, blocks deletion and force
+   pushes, and requires an up-to-date `check` result from GitHub Actions (app ID `15368`). These
+   values were verified against an actual successful CI check; `CI` is the workflow name, not
+   the required check context. Keep `.github/workflows/ci.yml` on pull-request/manual triggers.
+
+   ```sh
+   gh api repos/Kjaal/adaptive-debounce/rulesets
+   gh api repos/Kjaal/adaptive-debounce/rules/branches/main
+   ```
+
+3. On the next pull request, confirm GitHub shows `check` as required and prevents merging
+   while it is pending or failing. After a base change, update the branch and wait for its
+   new check before merging. Do not test protection by force-pushing or deleting `main`.
+4. In **Settings → Advanced Security**, enable **Dependabot alerts**, then **Dependabot security
+   updates**. Alternatively use the native endpoints below. These handle vulnerable dependencies;
+   no scheduled version-update configuration or new credential is needed.
+
+   ```sh
+   gh api --method PUT repos/Kjaal/adaptive-debounce/vulnerability-alerts
+   gh api --method PUT repos/Kjaal/adaptive-debounce/automated-security-fixes
+   gh api --include repos/Kjaal/adaptive-debounce/vulnerability-alerts
+   gh api repos/Kjaal/adaptive-debounce/automated-security-fixes
+   ```
+
+   Verification must return HTTP `204` for alerts and `enabled: true` for security updates.
+   Record the ruleset ID and verification evidence before completing `RELEASE-005`.
+
+There is no permanent administrator bypass. Emergency access requires an explicit, recorded
+GitHub policy change and restoration afterwards. This branch policy does not change the separate
+`npm-publish` environment approval policy below.
+
+See GitHub's [ruleset API](https://docs.github.com/en/rest/repos/rules#create-a-repository-ruleset)
+and [repository security settings API](https://docs.github.com/en/rest/repos/repos#enable-vulnerability-alerts).
+
 ## Release eligibility
 
 An npm release is eligible when:
