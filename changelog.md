@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `FRAMEWORK-003` Deferred Vue automatic startup until the root mounts so persisted timing cannot change the initial hydration render; covered delayed mount, shared observation, and unmount cleanup.
+- `FRAMEWORK-003` Deferred Vue automatic startup until application mount returns, including functional roots; covered delayed hydration, mount arguments/results/errors, shared observation, and unmount cleanup.
 
 - `RELEASE-003` Prepared the core, Vue, React, and Nuxt packages at the shared `0.1.0-rc.1` prerelease version and validated release metadata, builds, package consumers, SSR compatibility, size budgets, and resumable publication safeguards without dispatching a workflow or publishing.
 - `RELEASE-004` Made the temporary protected cleanup workflow query the exact prerelease version so it can verify and resume after `latest` is absent; added a local-registry regression check and documented `@next` installation and the published release candidate. Run `33120675727` passed preflight but npm refused the first deletion with `E403`; all four `latest` tags remain and workflow retirement is pending successful cleanup.

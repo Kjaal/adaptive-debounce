@@ -118,13 +118,14 @@ export function createAdaptiveDebouncePlugin(options: AdaptiveDebounceVueOptions
       app.onUnmount(runtime.dispose)
 
       if (options.autoStart !== false && typeof document !== 'undefined') {
-        app.mixin({
-          mounted() {
-            if (this === this.$root) {
-              void runtime.start().catch(runtime.report)
-            }
-          },
-        })
+        const mount = app.mount
+        app.mount = function (...arguments_) {
+          const instance = mount.apply(this, arguments_)
+          if (instance !== undefined) {
+            void runtime.start().catch(runtime.report)
+          }
+          return instance
+        }
       }
     },
   }

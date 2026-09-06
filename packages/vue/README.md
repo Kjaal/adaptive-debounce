@@ -53,8 +53,8 @@ that application instance. Neither mode reads or stores input text.
 
 ## SSR
 
-Importing and installing the plugin is SSR-safe. Automatic startup waits until the root component
-mounts, keeping the initial hydration state deterministic even when startup awaits router readiness.
+Importing and installing the plugin is SSR-safe. Automatic startup waits until `app.mount()` returns,
+including functional roots, keeping the initial root hydration state deterministic even when startup awaits router readiness.
 Browser observation and opted-in localStorage loading then start once for that app. Set
 `autoStart: false` to own startup explicitly through `runtime.start()` after hydration.
 Each Vue application receives a separate runtime, so server requests do not
