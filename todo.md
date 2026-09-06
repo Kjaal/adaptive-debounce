@@ -1,12 +1,14 @@
 # Adaptive Debounce Package — TODO
 
-Status: 24 of 27 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, release hardening, and guarded manual GitHub/npm automation are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. The first `0.1.0-rc.1` release candidate is published; `RELEASE-004` remains open until the unintended `latest` tags are cleaned up. npm name and scope control is confirmed for the new `Kjaal` account and `@adaptive-debounce` organization; the release-environment administrator-bypass policy remains pending under `HV-ADAPTIVE-DEBOUNCE-RELEASE-ADMIN-BYPASS`; the cleanup workflow has not run. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
+Status: 25 of 28 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, release hardening, and guarded manual GitHub/npm automation are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. The first `0.1.0-rc.1` release candidate is published; `RELEASE-004` remains open until the unintended `latest` tags are cleaned up. npm name and scope control is confirmed for the new `Kjaal` account and `@adaptive-debounce` organization; the release-environment administrator-bypass policy remains pending under `HV-ADAPTIVE-DEBOUNCE-RELEASE-ADMIN-BYPASS`; the cleanup workflow has not run. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
 Create a lightweight TypeScript package that learns a user's typing rhythm locally and provides a stable, bounded debounce delay. Developers can use that delay with the package's own debounce utility or integrate it into another workflow without adopting a framework. Keep the documented default browser quick-start import below 16 kB after minification and gzip compression if possible.
 
 ## Active Handoff Queue
+
+- [x] `CORE-006` Keep delay notifications current when a subscriber resets or imports state during dispatch. Deterministic reset/import regressions, first-error propagation, and idempotent cleanup pass. Resolves `HV-ADAPTIVE-DEBOUNCE-DELAY-REENTRANT-NOTIFY` (issue #1).
 
 Complete one item per turn in dependency order. Decision items require user approval before their dependent implementation begins.
 
@@ -244,7 +246,7 @@ const observedSave = adaptiveDebounce(saveItemMethod, {
 - Defaults are minimum `500 ms`, initial `750 ms`, maximum `1,500 ms`, smoothing `0.25`, interval multiplier `5`, quiet period `350 ms`, and idle reset `2,000 ms`.
 - Use a constant-memory clipped EWMA: derive a cold cadence prior from `(initialDelayMs - quietPeriodMs) / intervalMultiplier`, clamp each interval to `0.5×–2×` the current estimate, smooth the first accepted interval with the full configured weight, then curve mature weights as `smoothing / (1 + 2 × relative error)`. Multiply the result by `5`, add the `350 ms` quiet period, then clamp to the configured delay bounds.
 - The first record establishes a monotonic baseline. Ignore equal timestamps, begin a new burst after an idle gap without erasing learning, and reject regressing or non-finite clocks.
-- Notify subscribers synchronously after exportable state changes. State remains committed if a listener fails; run every listener, then rethrow the first error. Teardown is idempotent.
+- Notify subscribers synchronously after exportable state changes. State remains committed if a listener fails; run every listener for the current state, then rethrow the first error. A reentrant state change supersedes the remaining notifications of older state. Teardown is idempotent.
 - `AdaptiveDelayStateV1` is exactly `{ version: 1, smoothedIntervalMs: number | null }` and contains no text, identity, raw observations, or timestamps.
 - `importState(unknown)` validates atomically and returns `imported`, `invalid`, or `unsupported-version`; rejected input leaves current state untouched.
 
