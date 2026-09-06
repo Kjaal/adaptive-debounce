@@ -21,7 +21,7 @@ export interface AdaptiveDelayPersistenceAdapter {
 
 /** Configuration for trailing persistence after adaptive state changes. */
 export interface AdaptiveDelayAutosaveOptions {
-  /** Receives failures from background writes. */
+  /** Receives each failed background write batch once, including coalesced autosaves. */
   readonly onError: (error: unknown) => void
 }
 
@@ -133,6 +133,7 @@ export function createAdaptiveDelayPersistence(
   let disposed = false
   let suppressAutosave = false
   let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+  let lastAutosave: Promise<void> | undefined
   let pendingSave: SaveBatch | undefined
   let drainPromise: Promise<void> | undefined
   let pendingLoad: Promise<AdaptiveDelayImportResult> | undefined
@@ -250,7 +251,11 @@ export function createAdaptiveDelayPersistence(
     cancelAutosave()
     autosaveTimer = setTimeout(() => {
       autosaveTimer = undefined
-      void enqueueSave().catch(reportAutosaveError)
+      const save = enqueueSave()
+      if (save !== lastAutosave) {
+        lastAutosave = save
+        void save.catch(reportAutosaveError)
+      }
     }, AUTOSAVE_WAIT_MS)
   }
 
