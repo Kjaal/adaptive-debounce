@@ -4,7 +4,7 @@ const config: NuxtConfig = {
   modules: ['@adaptive-debounce/nuxt'],
   adaptiveDebounce: {
     observe: true,
-    persistence: false,
+    persistence: true,
   },
 }
 
