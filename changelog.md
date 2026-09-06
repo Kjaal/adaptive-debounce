@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `FRAMEWORK-004` Fixed Vue and Nuxt runtime observation after persistence is cleared during startup; discard the stale profile without cancelling startup, with regression coverage for learning, teardown, and stop/dispose races ([#10](https://github.com/Kjaal/adaptive-debounce/issues/10)).
 - `FRAMEWORK-003` Deferred Vue automatic startup until application mount returns, including functional roots; covered delayed hydration, mount arguments/results/errors, shared observation, and unmount cleanup.
 - `PERSIST-003` Bound coalesced autosave error handling to one handler per background batch, preserving manual rejection, serialized latest-state writes, and disposal. Added a deferred-adapter regression with 500 autosave ticks and two failed writes (#5).
 - `CORE-006` Stop obsolete delay notifications after a subscriber resets or imports learning, keeping later subscribers on the current state while preserving synchronous errors and cleanup (issue #1).
