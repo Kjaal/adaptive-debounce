@@ -116,7 +116,7 @@ The packed-consumer matrix currently covers:
 | Package | Peer range | Verified versions |
 | --- | --- | --- |
 | `@adaptive-debounce/vue` | Vue `>=3.5.0 <4.0.0` | Vue `3.5.41` |
-| `@adaptive-debounce/nuxt` | Nuxt `>=4.4.0 <4.5.0`, Vue `>=3.5.0 <4.0.0` | Nuxt `4.4.2`, Vue `3.5.41` |
+| `@adaptive-debounce/nuxt` | Nuxt `>=4.5.1 <4.6.0`, Vue `>=3.5.0 <4.0.0` | Nuxt `4.5.1`, Vue `3.5.41` |
 | `@adaptive-debounce/react` | React `^18.2.0 || ^19.0.0` | React `18.2.0`, React `19.2.8` |
 
 A peer range may be widened only after the new version is added to the packed-consumer matrix and

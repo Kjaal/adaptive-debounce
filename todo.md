@@ -1,6 +1,6 @@
 # Adaptive Debounce Package — TODO
 
-Status: 24 of 27 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, release hardening, and guarded manual GitHub/npm automation are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. The first `0.1.0-rc.1` release candidate is published; `RELEASE-004` remains open until the unintended `latest` tags are cleaned up. npm name and scope control is confirmed for the new `Kjaal` account and `@adaptive-debounce` organization; the release-environment administrator-bypass policy remains pending under `HV-ADAPTIVE-DEBOUNCE-RELEASE-ADMIN-BYPASS`; the cleanup workflow has not run. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
+Status: 25 of 28 scheduled task IDs are complete. The v1 implementation, automated verification, MIT public-package setup, release hardening, and guarded manual GitHub/npm automation are complete. The sibling playground is a separate local-only package tester, not a package release gate. `VERIFY-001` remains open for two real-device checks. The Vue, Nuxt, and React packages and their non-browser automated acceptance are implemented under `FRAMEWORK-001`, which remains open for manual Nuxt client validation and one React concurrent-render decision. The first `0.1.0-rc.1` release candidate is published; `RELEASE-004` remains open until the unintended `latest` tags are cleaned up. npm name and scope control is confirmed for the new `Kjaal` account and `@adaptive-debounce` organization; the release-environment administrator-bypass policy remains pending under `HV-ADAPTIVE-DEBOUNCE-RELEASE-ADMIN-BYPASS`; the cleanup workflow has not run. The exact runtime/browser support policy remains a pre-release decision. Working project and package name: `adaptive-debounce`.
 
 ## Product Goal
 
@@ -70,6 +70,8 @@ Complete one item per turn in dependency order. Decision items require user appr
 - [x] `DEMO-003` Add a privacy-safe live estimated WPM to the sibling debugger using the package's smoothed typing interval. Acceptance: show the estimate live, reset it with adaptive learning, include it in the copied JSON state, and cover initial, live, reset, and copied-output behavior in Chromium.
 
 ### 5. Framework integrations
+
+- [x] `FRAMEWORK-002` Corrected Nuxt compatibility to `>=4.5.1 <4.6.0`, coordinated Nuxt/kit/schema, CLI `3.37.0`, and DevTools `3.3.1` pins, and raised the contributor Node.js pin to `22.23.1` for Nuxt's engine requirement. Refreshed the lockfile; non-browser framework and core checks pass, and `pnpm audit` reports zero advisories. Package versions remain `0.1.0-rc.1`; nothing was published.
 
 - [ ] `FRAMEWORK-001` Implement independent companion packages with provisional names `@adaptive-debounce/vue`, `@adaptive-debounce/nuxt`, and `@adaptive-debounce/react`. Acceptance criteria:
   - [x] Create one app-, provider-, or request-scoped `AdaptiveDelay` and typing learner, one client observer, and an optional persistence lifecycle that survives client-side route changes.
@@ -214,7 +216,7 @@ FRAMEWORK-001 → independent Vue, Nuxt, and React companion packages
 
 ### Package foundation (`PF-001`, `PF-002`)
 
-- Use Node.js `22.18+` for contributor tooling and pnpm for package management.
+- Use the Node.js `22.23.1` contributor pin in `.node-version` and pnpm for package management. `FRAMEWORK-002` raises the pin to satisfy Nuxt `4.5.1`'s Node.js minimum.
 - Use TypeScript `7.0.2`, tsdown `0.22.14`, Vitest `4.1.11`, Biome `2.5.10`, publint `0.3.24`, and esbuild `0.28.2` with no runtime dependencies.
 - Emit ES2020 ESM and CommonJS plus `.d.mts` and `.d.cts`, and mark the package `sideEffects: false`.
 - Do not add a consumer `engines` promise until release compatibility is verified.
