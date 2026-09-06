@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `FRAMEWORK-003` Deferred Vue automatic startup until application mount returns, including functional roots; covered delayed hydration, mount arguments/results/errors, shared observation, and unmount cleanup.
 - `PERSIST-003` Bound coalesced autosave error handling to one handler per background batch, preserving manual rejection, serialized latest-state writes, and disposal. Added a deferred-adapter regression with 500 autosave ticks and two failed writes (#5).
 - `CORE-006` Stop obsolete delay notifications after a subscriber resets or imports learning, keeping later subscribers on the current state while preserving synchronous errors and cleanup (issue #1).
 - `FRAMEWORK-002` Updated Nuxt support to `>=4.5.1 <4.6.0`, aligned the framework dependencies and consumer checks with Nuxt `4.5.1`, CLI `3.37.0`, and DevTools `3.3.1`, and raised the contributor Node.js pin to `22.23.1`. Non-browser package and framework checks pass; the refreshed lockfile has no reported audit advisories. All package versions remain `0.1.0-rc.1` without publication.

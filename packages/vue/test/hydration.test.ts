@@ -1,14 +1,141 @@
 // @vitest-environment happy-dom
 
-import { createSSRApp, h } from 'vue'
+import { createApp, createSSRApp, defineComponent, h, nextTick, onMounted } from 'vue'
+import { renderToString } from 'vue/server-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createAdaptiveDebouncePlugin, useAdaptiveDelay } from '../src/index'
+import {
+  createAdaptiveDebouncePlugin,
+  useAdaptiveDebounceRuntime,
+  useAdaptiveDelay,
+} from '../src/index'
 
 afterEach(() => {
   document.body.replaceChildren()
+  localStorage.clear()
 })
 
 describe('Vue hydration', () => {
+  it.each([false, true])('starts a functional root with a stateful child: %s', (withChild) => {
+    const Child = defineComponent({ render: () => h('input') })
+    const app = createApp(() => (withChild ? h(Child) : h('input')))
+    const mount = vi.spyOn(app, 'mount')
+    app.use(createAdaptiveDebouncePlugin())
+    const runtime = app.runWithContext(useAdaptiveDebounceRuntime)
+    const start = vi.spyOn(runtime, 'start')
+    const addListener = vi.spyOn(document, 'addEventListener')
+    const removeListener = vi.spyOn(document, 'removeEventListener')
+    const container = document.createElement('div')
+    document.body.append(container)
+
+    expect(start).not.toHaveBeenCalled()
+    const result = app.mount(container)
+    expect(mount).toHaveBeenCalledExactlyOnceWith(container)
+    expect(mount.mock.contexts).toEqual([app])
+    expect(result).toBe(mount.mock.results[0]?.value)
+    expect(start).toHaveBeenCalledOnce()
+    expect(addListener).toHaveBeenCalledTimes(4)
+    app.unmount()
+    expect(removeListener).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not start after a missing target or restart after a repeated mount', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const app = createApp(() => h('input')).use(createAdaptiveDebouncePlugin())
+    const runtime = app.runWithContext(useAdaptiveDebounceRuntime)
+    const start = vi.spyOn(runtime, 'start')
+    const addListener = vi.spyOn(document, 'addEventListener')
+    expect(app.mount('#missing')).toBeUndefined()
+    expect(start).not.toHaveBeenCalled()
+    expect(addListener).not.toHaveBeenCalled()
+
+    const container = document.createElement('div')
+    document.body.append(container)
+    app.mount(container)
+    runtime.stop()
+    expect(app.mount(container)).toBeUndefined()
+    expect(start).toHaveBeenCalledOnce()
+    expect(addListener).toHaveBeenCalledTimes(4)
+    app.unmount()
+    expect(app.mount(container)).toBeUndefined()
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it('does not start when mounting throws or automatic startup is disabled', () => {
+    const app = createApp(() => h('input'))
+    const failure = new Error('mount failed')
+    app.mount = vi.fn(() => {
+      throw failure
+    })
+    app.use(createAdaptiveDebouncePlugin())
+    const runtime = app.runWithContext(useAdaptiveDebounceRuntime)
+    const start = vi.spyOn(runtime, 'start')
+    expect(() => app.mount(document.createElement('div'))).toThrow(failure)
+    expect(start).not.toHaveBeenCalled()
+    runtime.dispose()
+
+    const manual = createApp(() => h('input'))
+    const originalMount = manual.mount
+    manual.use(createAdaptiveDebouncePlugin({ autoStart: false }))
+    expect(manual.mount).toBe(originalMount)
+    manual.runWithContext(useAdaptiveDebounceRuntime).dispose()
+  })
+
+  it('loads persisted timing only after delayed root hydration and starts once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const initialDelays: number[] = []
+    const Child = defineComponent({
+      setup() {
+        const delayMs = useAdaptiveDelay()
+        initialDelays.push(delayMs.value)
+        return () => h('span', delayMs.value)
+      },
+    })
+    const Root = defineComponent({
+      setup() {
+        const delayMs = useAdaptiveDelay()
+        onMounted(() => expect(delayMs.value).toBe(750))
+        return () => h('div', [h(Child), h(Child)])
+      },
+    })
+    localStorage.setItem(
+      'adaptive-debounce:state',
+      JSON.stringify({ version: 1, smoothedIntervalMs: 200 }),
+    )
+    const getItem = vi.spyOn(localStorage, 'getItem')
+    const server = createSSRApp(Root).use(createAdaptiveDebouncePlugin({ persistence: true }))
+    const html = await renderToString(server)
+    expect(html).toBe('<div><span>750</span><span>750</span></div>')
+    const container = document.createElement('div')
+    container.innerHTML = html
+    document.body.append(container)
+    const app = createSSRApp(Root).use(createAdaptiveDebouncePlugin({ persistence: true }))
+    const runtime = app.runWithContext(useAdaptiveDebounceRuntime)
+    const start = vi.spyOn(runtime, 'start')
+    const addListener = vi.spyOn(document, 'addEventListener')
+    const removeListener = vi.spyOn(document, 'removeEventListener')
+
+    // Model async router readiness between plugin installation and mount.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(getItem).not.toHaveBeenCalled()
+    expect(start).not.toHaveBeenCalled()
+    app.mount(container)
+    expect(initialDelays).toEqual([750, 750, 750, 750])
+    expect(container.textContent).toBe('750750')
+    await vi.waitFor(() => expect(runtime.delay.getDelay()).toBe(1_350))
+    await nextTick()
+    expect(container.textContent).toBe('13501350')
+    expect(getItem).toHaveBeenCalledOnce()
+    expect(start).toHaveBeenCalledOnce()
+    expect(addListener).toHaveBeenCalledTimes(4)
+    expect(warn).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
+    app.unmount()
+    expect(removeListener).toHaveBeenCalledTimes(4)
+    await expect(runtime.start()).rejects.toThrow('disposed')
+    server.runWithContext(useAdaptiveDebounceRuntime).dispose()
+  })
+
   it('hydrates the deterministic cold state without mismatch warnings', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)

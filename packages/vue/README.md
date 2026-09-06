@@ -53,8 +53,11 @@ that application instance. Neither mode reads or stores input text.
 
 ## SSR
 
-Importing and installing the plugin is SSR-safe. Browser observation and localStorage start only in
-a browser lifecycle. Each Vue application receives a separate runtime, so server requests do not
+Importing and installing the plugin is SSR-safe. Automatic startup waits until `app.mount()` returns,
+including functional roots, keeping the initial root hydration state deterministic even when startup awaits router readiness.
+Browser observation and opted-in localStorage loading then start once for that app. Set
+`autoStart: false` to own startup explicitly through `runtime.start()` after hydration.
+Each Vue application receives a separate runtime, so server requests do not
 share learned state. No module-global runtime is created.
 
 For Nuxt, use `@adaptive-debounce/nuxt` instead of wiring client lifecycle hooks yourself.
