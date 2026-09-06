@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `FRAMEWORK-002` Updated Nuxt support to `>=4.5.1 <4.6.0`, aligned the framework dependencies and consumer checks with Nuxt `4.5.1`, CLI `3.37.0`, and DevTools `3.3.1`, and raised the contributor Node.js pin to `22.23.1`. Non-browser package and framework checks pass; the refreshed lockfile has no reported audit advisories. All package versions remain `0.1.0-rc.1` without publication.
 - `WF-003` Removed internal planning notes from version control.
 - `RELEASE-003` Prepared the core, Vue, React, and Nuxt packages at the shared `0.1.0-rc.1` prerelease version and validated release metadata, builds, package consumers, SSR compatibility, size budgets, and resumable publication safeguards without dispatching a workflow or publishing.
 - `RELEASE-004` Made the temporary protected cleanup workflow query the exact prerelease version so it can verify and resume after `latest` is absent; added a local-registry regression check and documented `@next` installation and the published release candidate. Run `33120675727` passed preflight but npm refused the first deletion with `E403`; all four `latest` tags remain and workflow retirement is pending successful cleanup.

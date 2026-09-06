@@ -5,6 +5,9 @@ per Nuxt app, starts typing observation after client mount, and auto-imports the
 
 ## Install
 
+Requires Nuxt `>=4.5.1 <4.6.0` and Vue `>=3.5.0 <4.0.0`. The packed consumer checks use Nuxt
+`4.5.1`; earlier Nuxt versions are excluded because they lack upstream security fixes.
+
 ```sh
 npm install adaptive-debounce@next @adaptive-debounce/vue@next @adaptive-debounce/nuxt@next
 ```
