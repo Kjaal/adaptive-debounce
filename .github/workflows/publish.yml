@@ -88,6 +88,12 @@ jobs:
           ADAPTIVE_DEBOUNCE_RELEASE_DIR: ${{ github.workspace }}/release
           ADAPTIVE_DEBOUNCE_RELEASE_VERSION: ${{ inputs.version }}
         run: pnpm framework:check
+      - name: Check Nuxt production hydration
+        run: pnpm exec playwright test --config packages/nuxt/playwright.config.ts
+      - name: Check Nuxt development lifecycle
+        env:
+          FRAMEWORK_HMR: '1'
+        run: pnpm exec playwright test --config packages/nuxt/playwright.config.ts
       - name: Confirm checks did not change tracked files
         run: |
           git diff --exit-code -- .

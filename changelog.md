@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `FRAMEWORK-001` Added production hydration, navigation, unmount cleanup, component HMR, and plugin reload checks for Nuxt to pull-request CI and release validation (#15).
 - `RELEASE-005` Prepared a native main-branch ruleset requiring pull requests and the existing GitHub Actions check, with no permanent bypass; documented one-time activation and native Dependabot security settings. Live enforcement and security-setting activation remain pending after review and merge.
 - `FRAMEWORK-004` Fixed Vue and Nuxt runtime observation after persistence is cleared during startup; discard the stale profile without cancelling startup, with regression coverage for learning, teardown, and stop/dispose races ([#10](https://github.com/Kjaal/adaptive-debounce/issues/10)).
 - `FRAMEWORK-003` Deferred Vue automatic startup until application mount returns, including functional roots; covered delayed hydration, mount arguments/results/errors, shared observation, and unmount cleanup.

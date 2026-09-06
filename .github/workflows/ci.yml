@@ -37,3 +37,9 @@ jobs:
         run: pnpm check
       - name: Check the framework packages
         run: pnpm framework:check
+      - name: Check Nuxt production hydration
+        run: pnpm exec playwright test --config packages/nuxt/playwright.config.ts
+      - name: Check Nuxt development lifecycle
+        env:
+          FRAMEWORK_HMR: '1'
+        run: pnpm exec playwright test --config packages/nuxt/playwright.config.ts
