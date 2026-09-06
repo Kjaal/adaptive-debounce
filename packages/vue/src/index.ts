@@ -44,7 +44,7 @@ export interface AdaptiveDebounceVueOptions {
   readonly observe?: false | ObserveTypingOptions
   /** Opt-in persistence using localStorage or a custom adapter. @defaultValue false */
   readonly persistence?: boolean | AdaptiveDebounceVuePersistenceOptions
-  /** Starts during browser installation. Nuxt sets this to `false`. @defaultValue true */
+  /** Starts after the root mounts. Nuxt sets this to `false`. @defaultValue true */
   readonly autoStart?: boolean
   /** Receives automatic start and autosave failures. */
   readonly onError?: (error: unknown) => void
@@ -118,7 +118,13 @@ export function createAdaptiveDebouncePlugin(options: AdaptiveDebounceVueOptions
       app.onUnmount(runtime.dispose)
 
       if (options.autoStart !== false && typeof document !== 'undefined') {
-        void runtime.start().catch(runtime.report)
+        app.mixin({
+          mounted() {
+            if (this === this.$root) {
+              void runtime.start().catch(runtime.report)
+            }
+          },
+        })
       }
     },
   }
