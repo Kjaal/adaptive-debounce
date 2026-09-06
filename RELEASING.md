@@ -13,9 +13,10 @@ uses the version committed to the package manifests. It does not create a Git ta
 ## Activate repository safeguards after merge
 
 The policy in [`.github/rulesets/main.json`](./.github/rulesets/main.json) is a reviewed settings
-payload, not an automatically applied configuration. As verified on September 6, 2026, `main`
-has no protection or rulesets, and Dependabot alerts and security updates are disabled. Merging
-this file does not change those settings. `RELEASE-005` stays open until activation is verified.
+payload, not an automatically applied configuration. As verified on September 6, 2026, ruleset
+`22395725` is active on `main` without bypass actors, and Dependabot alerts and security updates
+are enabled. Merging this file does not change those settings. The checks below describe how
+maintainers can inspect or restore the existing policy.
 
 After review and merge, an administrator should use an existing authorized GitHub session:
 
@@ -72,7 +73,8 @@ An npm release is eligible when:
 - `changelog.md` describes the public changes; and
 - all four package manifests contain the same approved, nonzero SemVer.
 
-The package manifests are currently `0.1.0-rc.1`; `0.0.0` is a release-blocking development sentinel.
+The package manifests prepare stable `0.1.0`; it has not yet been published. `0.0.0` is a
+release-blocking development sentinel.
 A release updates the version in these committed files:
 
 - `package.json`
@@ -142,6 +144,13 @@ require two-factor authentication and disallow token-based publication. See npm'
 [trusted publishing](https://docs.npmjs.com/trusted-publishers/) and
 [provenance](https://docs.npmjs.com/generating-provenance-statements/) guidance.
 
+For `0.1.0`, the maintainer explicitly authorized reuse of the existing protected
+`NPM_TOKEN_BOOTSTRAP` through the supported `bootstrap-token` workflow option. This is a
+release-specific exception to the intended trusted-publishing default, with no credential,
+permission, package-access, or environment-setting change. The earlier tag-deletion refusal does
+not establish that the token cannot publish. Publication still requires the outstanding device
+verification condition to be satisfied or explicitly accepted and normal environment approval.
+
 ## Publish an approved version
 
 Start **Package and publish npm** from the approved `main` commit with:
@@ -168,7 +177,12 @@ stable release is approved. The unintended `latest` tags remain: cleanup run
 but received npm `E403` on the first `adaptive-debounce` tag deletion, before removing any tags.
 The response does not establish which credential or npm policy caused the refusal.
 
-`Remove prerelease latest tags` is retained until cleanup succeeds. Its metadata queries select
+The approved stable publication will move `latest` to `0.1.0` without deleting `next` or the
+prerelease. After all four packages are verified with `latest=0.1.0` and `next=0.1.0-rc.1`, retire
+the temporary cleanup workflow and its fixture in a separate pull request. A separate tag deletion
+is unnecessary for that path.
+
+Until that verification, `Remove prerelease latest tags` is retained. Its metadata queries select
 `0.1.0-rc.1` explicitly so verification and reruns also work after `latest` is absent. Run
 `node scripts/check-prerelease-cleanup.mjs` to exercise the workflow against a local registry
 fixture (on Windows, use Git Bash or pass its executable path as the first argument).

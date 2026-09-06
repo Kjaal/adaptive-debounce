@@ -3,8 +3,9 @@
 ## Supported versions
 
 The core, Vue, React, and Nuxt packages published `0.1.0-rc.1` on August 27, 2026.
-This is a prerelease available through `next`; no stable security-supported release line has been
-declared. Report vulnerabilities in the release candidate through the private channel below.
+The release candidate is available through `next`. Report vulnerabilities affecting `0.1.0` or
+the release candidate through the private channel below. No response or remediation deadline
+is promised.
 Development snapshots should not be treated as security-supported packages.
 
 ## Reporting a vulnerability

@@ -1,6 +1,6 @@
 {
   "name": "adaptive-debounce",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0",
   "description": "Framework-agnostic adaptive debounce utilities for JavaScript and TypeScript.",
   "license": "MIT",
   "repository": {
