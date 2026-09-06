@@ -52,6 +52,7 @@ export interface AdaptiveDelay {
    * Subscribes to future exported-state changes.
    *
    * The listener is not called eagerly. The returned teardown is idempotent.
+   * A reentrant state change supersedes the remaining notifications of older state.
    */
   subscribe(listener: AdaptiveDelayListener): () => void
   /** Returns a fresh privacy-safe state snapshot. */
@@ -213,6 +214,7 @@ export function createAdaptiveDelay(options?: AdaptiveDelayOptions): AdaptiveDel
 
   let smoothedIntervalMs: number | null = null
   let lastRecordedAtMs: number | null = null
+  let notificationVersion = 0
   const listeners = new Set<AdaptiveDelayListener>()
 
   const getDelay = (): number => {
@@ -227,11 +229,15 @@ export function createAdaptiveDelay(options?: AdaptiveDelayOptions): AdaptiveDel
   }
 
   const notify = (): void => {
+    const version = ++notificationVersion
     const delayMs = getDelay()
     let firstError: unknown
     let hasError = false
 
     for (const listener of [...listeners]) {
+      if (version !== notificationVersion) {
+        break
+      }
       try {
         listener(delayMs)
       } catch (error) {

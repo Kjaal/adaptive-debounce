@@ -91,7 +91,7 @@
     "@biomejs/biome": "2.5.10",
     "@playwright/test": "1.62.1",
     "esbuild": "0.28.2",
-    "nuxt": "4.4.2",
+    "nuxt": "4.5.1",
     "publint": "0.3.24",
     "tsdown": "0.22.14",
     "typescript": "7.0.2",

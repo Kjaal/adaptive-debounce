@@ -487,7 +487,7 @@ async function checkNuxt(temporaryRoot, tarballs) {
       '@adaptive-debounce/nuxt': fileDependency(consumerRoot, tarballs.nuxt),
       '@adaptive-debounce/vue': fileDependency(consumerRoot, tarballs.vue),
       'adaptive-debounce': fileDependency(consumerRoot, tarballs.core),
-      nuxt: '4.4.2',
+      nuxt: '4.5.1',
       typescript: '5.9.3',
       vue: '3.5.41',
       'vue-tsc': '3.3.11',
@@ -516,9 +516,9 @@ async function checkNuxt(temporaryRoot, tarballs) {
     {
       strictPeerDependencies: false,
       overrides: {
-        '@nuxt/cli': '3.35.1',
-        '@nuxt/devtools': '3.2.3',
-        '@nuxt/kit': '4.4.2',
+        '@nuxt/cli': '3.37.0',
+        '@nuxt/devtools': '3.3.1',
+        '@nuxt/kit': '4.5.1',
       },
     },
   )
