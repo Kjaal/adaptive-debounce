@@ -78,6 +78,46 @@ test('hydrates, preserves one observer across navigation, and cleans up on unmou
   expect(errors).toEqual([])
 })
 
+test('restores a saved profile only after hydrating the cold state', async ({ page, request }) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'warning' || message.type() === 'error') errors.push(message.text())
+  })
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'adaptive-debounce:state',
+      JSON.stringify({ version: 1, smoothedIntervalMs: 200 }),
+    )
+    const reads = { count: 0, beforeMounted: false, delayAtRead: '' }
+    Reflect.set(window, '__adaptiveStorageReads', reads)
+    const getItem = Storage.prototype.getItem
+    Storage.prototype.getItem = function (key: string): string | null {
+      if (this === localStorage && key === 'adaptive-debounce:state') {
+        reads.count += 1
+        reads.beforeMounted ||= document.documentElement.dataset.frameworkMounted !== 'true'
+        reads.delayAtRead = document.querySelector('[data-testid="delay"]')?.textContent ?? ''
+      }
+      return getItem.call(this, key)
+    }
+  })
+  const response = await request.get('/')
+  expect(response.ok()).toBe(true)
+  expect(await response.text()).toContain('data-testid="delay">750</span>')
+  await page.goto('/')
+  await expect(page.getByTestId('mounted-delay')).toHaveText('750')
+  await expect(page.getByTestId('delay')).toHaveText('1350')
+  expect(await page.evaluate(() => Reflect.get(window, '__adaptiveStorageReads'))).toEqual({
+    count: 1,
+    beforeMounted: false,
+    delayAtRead: '750',
+  })
+  await expect.poll(async () => (await probe(page)).active).toBe(1)
+  await page.getByRole('button', { name: 'Unmount app' }).click()
+  await expect.poll(async () => (await probe(page)).active).toBe(0)
+  expect(errors).toEqual([])
+})
+
 test('component HMR retains one runtime and plugin reload restores one active runtime', async ({
   page,
 }) => {
