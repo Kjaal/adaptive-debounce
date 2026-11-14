@@ -44,7 +44,7 @@
   "dependencies": {
     "@adaptive-debounce/vue": "workspace:^",
     "@nuxt/kit": "~4.5.1",
-    "@nuxt/schema": "~4.5.1",
+    "@nuxt/schema": "~4.6.4",
     "adaptive-debounce": "workspace:^"
   },
   "peerDependencies": {
